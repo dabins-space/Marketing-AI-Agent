@@ -1,18 +1,20 @@
-import { ChatSection } from './components/ChatSection';
-import { CalendarSection } from './components/CalendarSection';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from './components/ui/resizable';
-import { Menu, X, ChevronLeft, ChevronRight, MessageSquare, Calendar } from 'lucide-react';
-import { useState } from 'react';
-import type { ScheduledAction } from './components/StrategyModal';
+'use client'
 
-export default function App() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [scheduledActions, setScheduledActions] = useState<ScheduledAction[]>([]);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+import { ChatSection } from '@/components/ChatSection'
+import { CalendarSection } from '@/components/CalendarSection'
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
+import { ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react'
+import { useState } from 'react'
+import type { ScheduledAction } from '@/components/StrategyModal'
+
+export default function HomePage() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [scheduledActions, setScheduledActions] = useState<ScheduledAction[]>([])
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false)
 
   const handleScheduleRegister = (actions: ScheduledAction[]) => {
-    setScheduledActions(prev => [...prev, ...actions]);
-  };
+    setScheduledActions(prev => [...prev, ...actions])
+  }
 
   return (
     <div className="h-screen w-full flex flex-col bg-[#FFFBF7]">
@@ -104,5 +106,6 @@ export default function App() {
         </div>
       </div>
     </div>
-  );
+  )
 }
+

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { X, Sparkles, RefreshCw, Calendar as CalendarIcon, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
-import { Badge } from './ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
-import { Checkbox } from './ui/checkbox';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Calendar } from './ui/calendar';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Resizable } from 're-resizable';
 
 interface ActionPlan {

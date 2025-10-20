@@ -1,6 +1,6 @@
 import { Send, Sparkles, Calendar, TrendingUp, Users, Gift, CheckCircle } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { StrategyModal, type ScheduledAction } from './StrategyModal';
+import { StrategyModal, type ScheduledAction } from '@/components/StrategyModal';
 
 interface Message {
   id: number;

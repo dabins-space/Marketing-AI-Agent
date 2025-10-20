@@ -1,11 +1,11 @@
 import { Calendar, ChevronLeft, ChevronRight, TrendingUp, Star, Copy, Sparkles, X, CalendarIcon, Users, MoreHorizontal } from 'lucide-react';
-import { Badge } from './ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState, useMemo } from 'react';
-import type { ScheduledAction } from './StrategyModal';
+import type { ScheduledAction } from '@/components/StrategyModal';
 
 interface EventDetail {
   id: number;
@@ -247,9 +247,9 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
 
   const handleEventClick = (eventId: number) => {
     // Check if it's a scheduled action
-    const event = calendarEvents.find(e => e.id === eventId);
+    const event = calendarEvents.find(e => e?.id === eventId);
     if (event && 'scheduledAction' in event && event.scheduledAction) {
-      const action = event.scheduledAction;
+      const action = event.scheduledAction as ScheduledAction;
       const detail: EventDetail = {
         id: eventId,
         title: action.actionTitle,
@@ -415,8 +415,8 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                     {[...Array(daysInMonth)].map((_, i) => {
                       const dayNum = i + 1;
                       const events = calendarEvents
-                        .filter(e => e.date === dayNum)
-                        .filter(e => selectedFilters.has(e.type));
+                        .filter(e => e?.date === dayNum)
+                        .filter(e => e && selectedFilters.has(e.type));
                       const isToday = isCurrentMonth && dayNum === todayDate;
                       
                       return (
@@ -432,13 +432,14 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                           <div className="space-y-0.5 flex-1 min-h-0 overflow-hidden">
                             {/* Show only first 2 events */}
                             {events.slice(0, 2).map((event, idx) => {
+                              if (!event) return null;
                               // Format title for better readability
                               let displayTitle = event.title;
                               let fullTitle = event.title;
                               
                               // For scheduled actions, use action title only
                               if ('scheduledAction' in event && event.scheduledAction) {
-                                const action = event.scheduledAction;
+                                const action = event.scheduledAction as ScheduledAction;
                                 
                                 // Full title for tooltip (no strategy code)
                                 fullTitle = action.actionTitle;
@@ -494,13 +495,14 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                                       </Badge>
                                     </div>
                                     {events.map((event, idx) => {
+                                      if (!event) return null;
                                       // Format title for better readability
                                       let displayTitle = event.title;
                                       let fullTitle = event.title;
                                       
                                       // For scheduled actions, use action title only
                                       if ('scheduledAction' in event && event.scheduledAction) {
-                                        const action = event.scheduledAction;
+                                        const action = event.scheduledAction as ScheduledAction;
                                         fullTitle = action.actionTitle;
                                         displayTitle = action.actionTitle;
                                       }
