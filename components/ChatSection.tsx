@@ -183,6 +183,7 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
   };
 
   const handleSendMessage = () => {
+    console.log('Send message clicked:', inputValue);
     if (!inputValue.trim()) return;
     
     const userMessage: Message = {
@@ -212,6 +213,7 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
   };
 
   const handleQuickQuestion = (questionText: string) => {
+    console.log('Quick question clicked:', questionText);
     const userMessage: Message = {
       id: Date.now(),
       type: 'user',

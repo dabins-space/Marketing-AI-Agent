@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Resizable } from 're-resizable';
+import { toast } from 'sonner';
 
 interface ActionPlan {
   category: 'content' | 'channel' | 'event';
@@ -356,6 +357,57 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
   const [modalSize, setModalSize] = useState({ width: 1400, height: 850 }); // Larger size for better visibility without scrolling
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Google Calendar integration functions
+  const createCalendarEvent = async (action: ScheduledAction) => {
+    try {
+      // Check if Google Calendar is connected
+      const storedTokens = localStorage.getItem('google_calendar_tokens');
+      if (!storedTokens) {
+        toast.error('구글 캘린더에 먼저 연결해주세요.');
+        return;
+      }
+
+      const tokens = JSON.parse(storedTokens);
+
+      // Format dates for the event
+      const startDate = new Date(action.date);
+      const endDate = new Date(action.date);
+      endDate.setHours(startDate.getHours() + 1); // Default 1 hour duration
+
+      const eventData = {
+        title: action.actionTitle,
+        description: `${action.actionDescription}\n\n전략: ${action.strategyTitle}\n실행 모드: ${action.mode === 'expert' ? '전문가 요청' : '직접 실행'}`,
+        location: '', // Add location if needed
+        startISO: startDate.toISOString(),
+        endISO: endDate.toISOString(),
+        attendees: [] // Add attendees if needed
+      };
+
+      const response = await fetch('/api/gcal/create-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${JSON.stringify(tokens)}`
+        },
+        body: JSON.stringify(eventData)
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast.success('캘린더에 일정이 추가되었습니다!');
+      } else if (result.code === 'AUTH_EXPIRED') {
+        toast.error('인증이 만료되었습니다. 다시 연결해주세요.');
+        localStorage.removeItem('google_calendar_tokens');
+      } else {
+        throw new Error(result.error || 'Failed to create event');
+      }
+    } catch (error) {
+      console.error('Calendar event creation error:', error);
+      toast.error('캘린더 일정 생성에 실패했습니다.');
+    }
+  };
+
   // Get current mode for a strategy (default is 'direct')
   const getStrategyMode = (strategyId: number): 'direct' | 'expert' => {
     return strategyModes[strategyId] || 'direct';
@@ -471,7 +523,7 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
   };
 
   // Register selected actions to schedule
-  const handleScheduleRegister = () => {
+  const handleScheduleRegister = async () => {
     const scheduledActions: ScheduledAction[] = [];
 
     // Iterate through each strategy
@@ -513,6 +565,19 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
     // Call the callback to send scheduled actions to parent
     if (onScheduleRegister) {
       onScheduleRegister(scheduledActions);
+    }
+
+    // Create Google Calendar events for all selected actions
+    const isGoogleConnected = localStorage.getItem('google_calendar_tokens');
+    if (isGoogleConnected) {
+      toast.info('구글 캘린더에 일정을 추가하는 중...');
+      
+      // Create events one by one to avoid rate limiting
+      for (const action of scheduledActions) {
+        await createCalendarEvent(action);
+        // Small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
 
     // Close modal

@@ -4,7 +4,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { toast } from 'sonner';
 import type { ScheduledAction } from '@/components/StrategyModal';
 
 interface EventDetail {
@@ -35,9 +36,135 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [googleTokens, setGoogleTokens] = useState<any>(null);
   const [selectedStrategyFilter, setSelectedStrategyFilter] = useState<string>('all'); // 'all' or strategyCode
   const [isDevelopmentModalOpen, setIsDevelopmentModalOpen] = useState(false);
   const [developmentModalType, setDevelopmentModalType] = useState<'ai' | 'expert'>('ai');
+
+  // Check for Google Calendar connection on component mount
+  useEffect(() => {
+    // Check URL parameters for connection success
+    const urlParams = new URLSearchParams(window.location.search);
+    const gcalConnected = urlParams.get('gcal_connected');
+    
+    if (gcalConnected === 'true') {
+      // Check for tokens in URL hash
+      const hash = window.location.hash;
+      const tokenMatch = hash.match(/tokens=([^&]+)/);
+      
+      if (tokenMatch) {
+        try {
+          const tokens = JSON.parse(decodeURIComponent(tokenMatch[1]));
+          setGoogleTokens(tokens);
+          setIsGoogleConnected(true);
+          toast.success('구글 캘린더가 성공적으로 연결되었습니다!');
+          
+          // Clean up URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (error) {
+          console.error('Failed to parse tokens:', error);
+          toast.error('토큰 파싱에 실패했습니다.');
+        }
+      }
+    }
+    
+    // Check for stored tokens in localStorage
+    const storedTokens = localStorage.getItem('google_calendar_tokens');
+    if (storedTokens) {
+      try {
+        const tokens = JSON.parse(storedTokens);
+        setGoogleTokens(tokens);
+        setIsGoogleConnected(true);
+      } catch (error) {
+        console.error('Failed to parse stored tokens:', error);
+        localStorage.removeItem('google_calendar_tokens');
+      }
+    }
+  }, []);
+
+  // Store tokens when they change
+  useEffect(() => {
+    if (googleTokens) {
+      localStorage.setItem('google_calendar_tokens', JSON.stringify(googleTokens));
+    }
+  }, [googleTokens]);
+
+  // Google Calendar connection functions
+  const handleGoogleConnect = async () => {
+    try {
+      console.log('Attempting to connect to Google Calendar...');
+      const response = await fetch('/api/gcal/auth');
+      console.log('Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('Response data:', data);
+      
+      if (data.authUrl) {
+        console.log('Redirecting to auth URL:', data.authUrl);
+        window.location.href = data.authUrl;
+      } else {
+        console.error('No auth URL in response:', data);
+        throw new Error(data.error || 'Failed to get auth URL');
+      }
+    } catch (error) {
+      console.error('Google Calendar connection error:', error);
+      toast.error(`구글 캘린더 연결에 실패했습니다: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleGoogleDisconnect = () => {
+    setGoogleTokens(null);
+    setIsGoogleConnected(false);
+    localStorage.removeItem('google_calendar_tokens');
+    toast.success('구글 캘린더 연결이 해제되었습니다.');
+  };
+
+  // Create calendar event function
+  const createCalendarEvent = async (action: ScheduledAction) => {
+    if (!googleTokens) {
+      toast.error('구글 캘린더에 먼저 연결해주세요.');
+      return;
+    }
+
+    try {
+      // Format dates for the event
+      const startDate = new Date(action.date);
+      const endDate = new Date(action.date);
+      endDate.setHours(startDate.getHours() + 1); // Default 1 hour duration
+
+      const eventData = {
+        title: action.actionTitle,
+        description: `${action.actionDescription}\n\n전략: ${action.strategyTitle}\n실행 모드: ${action.mode === 'expert' ? '전문가 요청' : '직접 실행'}`,
+        location: '', // Add location if needed
+        startISO: startDate.toISOString(),
+        endISO: endDate.toISOString(),
+        attendees: [] // Add attendees if needed
+      };
+
+      const response = await fetch('/api/gcal/create-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${JSON.stringify(googleTokens)}`
+        },
+        body: JSON.stringify(eventData)
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast.success('캘린더에 일정이 추가되었습니다!');
+      } else if (result.code === 'AUTH_EXPIRED') {
+        toast.error('인증이 만료되었습니다. 다시 연결해주세요.');
+        handleGoogleDisconnect();
+      } else {
+        throw new Error(result.error || 'Failed to create event');
+      }
+    } catch (error) {
+      console.error('Calendar event creation error:', error);
+      toast.error('캘린더 일정 생성에 실패했습니다.');
+    }
+  };
 
   // Mock calendar data with IDs
   const baseCalendarEvents: Array<{
@@ -308,16 +435,25 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
           <div className="mb-4 flex justify-end flex-shrink-0">
             {!isGoogleConnected ? (
               <button 
-                onClick={() => setIsGoogleConnected(true)}
+                onClick={handleGoogleConnect}
                 className="px-3 py-2 bg-white border border-gray-300 hover:border-[#FFA45B] rounded-lg transition-all flex items-center gap-1.5 group"
               >
                 <CalendarIcon className="w-4 h-4 text-gray-600 group-hover:text-[#FFA45B] transition-colors" />
                 <span className="text-sm text-gray-700 group-hover:text-[#FFA45B] transition-colors">구글 달력 연동하기</span>
               </button>
             ) : (
-              <div className="px-3 py-2 bg-green-50 border border-green-300 rounded-lg flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                <span className="text-sm text-green-700">연결됨</span>
+              <div className="flex items-center gap-2">
+                <div className="px-3 py-2 bg-green-50 border border-green-300 rounded-lg flex items-center gap-1.5">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="text-sm text-green-700">연결됨</span>
+                </div>
+                <button 
+                  onClick={handleGoogleDisconnect}
+                  className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 transition-colors"
+                  title="연결 해제"
+                >
+                  ✕
+                </button>
               </div>
             )}
           </div>
@@ -762,6 +898,19 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                       닫기
                     </button>
                     <button 
+                      onClick={() => {
+                        // Find the corresponding scheduled action
+                        const action = scheduledActions.find(a => 
+                          a.actionTitle === selectedEvent.title && 
+                          a.actionDescription === selectedEvent.description
+                        );
+                        if (action) {
+                          createCalendarEvent(action);
+                        } else {
+                          toast.error('해당 액션을 찾을 수 없습니다.');
+                        }
+                        setIsEventDialogOpen(false);
+                      }}
                       className="flex-1 px-5 py-3 bg-gradient-to-br from-[#FF8C00] to-[#FF6B35] text-white rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2"
                     >
                       <Sparkles className="w-5 h-5" />

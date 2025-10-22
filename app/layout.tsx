@@ -9,11 +9,20 @@ const notoSansKR = Noto_Sans_KR({
 })
 
 export const metadata: Metadata = {
-  title: 'Marketing AI Agent',
+  title: '잘난가게 - Marketing AI Agent',
   description: 'AI-powered marketing strategy and calendar management tool',
   keywords: ['marketing', 'AI', 'strategy', 'calendar', 'automation'],
   authors: [{ name: 'Marketing AI Agent Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({

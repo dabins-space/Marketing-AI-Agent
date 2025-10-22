@@ -1,0 +1,11 @@
+<svg viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-auto h-full">
+  <!-- Main Logo Text -->
+  <text x="60" y="25" font-family="Arial, sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#FFA45B" font-style="italic">
+    잘난가게
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="60" y="36" font-family="Arial, sans-serif" font-size="9" font-weight="500" text-anchor="middle" fill="#666666">
+    AI Agent
+  </text>
+</svg>
