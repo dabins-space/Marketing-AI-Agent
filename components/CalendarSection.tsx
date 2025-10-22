@@ -166,25 +166,6 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
     }
   };
 
-  // Mock calendar data with IDs
-  const baseCalendarEvents: Array<{
-    id: number;
-    date: number;
-    title: string;
-    type: 'personal' | 'ai' | 'strategy' | 'reservation';
-    color: string;
-  }> = [
-    { id: 1, date: 11, title: '개인: 가족 모임', type: 'personal' as const, color: 'bg-gray-400' },
-    { id: 4, date: 15, title: '개인: 점검 예정', type: 'personal' as const, color: 'bg-gray-400' },
-    { id: 11, date: 8, title: '개인: 은행 업무', type: 'personal' as const, color: 'bg-gray-400' },
-    { id: 12, date: 13, title: '개인: 재료 구매', type: 'personal' as const, color: 'bg-gray-400' },
-    { id: 13, date: 17, title: '개인: 휴무', type: 'personal' as const, color: 'bg-gray-400' },
-    { id: 14, date: 21, title: '개인: 직원 회의', type: 'personal' as const, color: 'bg-gray-400' },
-    { id: 15, date: 24, title: '개인: 세무사 상담', type: 'personal' as const, color: 'bg-gray-400' },
-    { id: 16, date: 28, title: '개인: 장비 수리', type: 'personal' as const, color: 'bg-gray-400' },
-    { id: 17, date: 31, title: '개인: 월말 결산', type: 'personal' as const, color: 'bg-gray-400' },
-  ];
-
   // Get unique strategies from scheduledActions
   const availableStrategies = useMemo(() => {
     const strategiesMap = new Map<string, string>();
@@ -198,6 +179,25 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
 
   // Merge scheduled actions with calendar events
   const calendarEvents = useMemo(() => {
+    // Mock calendar data with IDs
+    const baseCalendarEvents: Array<{
+      id: number;
+      date: number;
+      title: string;
+      type: 'personal' | 'ai' | 'strategy' | 'reservation';
+      color: string;
+    }> = [
+      { id: 1, date: 11, title: '개인: 가족 모임', type: 'personal' as const, color: 'bg-gray-400' },
+      { id: 4, date: 15, title: '개인: 점검 예정', type: 'personal' as const, color: 'bg-gray-400' },
+      { id: 11, date: 8, title: '개인: 은행 업무', type: 'personal' as const, color: 'bg-gray-400' },
+      { id: 12, date: 13, title: '개인: 재료 구매', type: 'personal' as const, color: 'bg-gray-400' },
+      { id: 13, date: 17, title: '개인: 휴무', type: 'personal' as const, color: 'bg-gray-400' },
+      { id: 14, date: 21, title: '개인: 직원 회의', type: 'personal' as const, color: 'bg-gray-400' },
+      { id: 15, date: 24, title: '개인: 세무사 상담', type: 'personal' as const, color: 'bg-gray-400' },
+      { id: 16, date: 28, title: '개인: 장비 수리', type: 'personal' as const, color: 'bg-gray-400' },
+      { id: 17, date: 31, title: '개인: 월말 결산', type: 'personal' as const, color: 'bg-gray-400' },
+    ];
+
     const scheduledEvents = scheduledActions
       .filter(action => {
         // Filter by selected strategy

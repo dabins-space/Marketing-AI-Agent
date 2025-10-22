@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 interface CreateEventRequest {
   title: string;
   description: string;
