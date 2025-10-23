@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
         localStorage.setItem('google_calendar_tokens', JSON.stringify(tokens));
         
         // Redirect to main page with success parameter
-        window.location.href = '${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}?gcal_connected=true&success=true';
+        window.location.href = '${process.env.NEXT_PUBLIC_APP_URL || 'https://marketing-ai-agent-pxpazxr8k-dabins-projects-7f0a620d.vercel.app'}?gcal_connected=true&success=true';
     </script>
     <p>구글 캘린더 연결이 완료되었습니다. 잠시 후 메인 페이지로 이동합니다...</p>
 </body>
