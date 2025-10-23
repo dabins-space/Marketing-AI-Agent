@@ -457,7 +457,7 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
     setStrategyModes(initializeStrategyModes());
     setActionModes(initializeActionModes());
   }, [strategies]);
-  const [showAnalysis, setShowAnalysis] = useState(true);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const [expandedStrategies, setExpandedStrategies] = useState<Set<number>>(new Set());
   const [strategyDates, setStrategyDates] = useState<{ [strategyId: number]: { startDate: Date | undefined; endDate: Date | undefined } }>({});
   const [openPopover, setOpenPopover] = useState<{ strategyId: number | null; field: 'start' | 'end' | null }>({ strategyId: null, field: null });
@@ -855,32 +855,27 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                   </div>
                   <div className="flex-1">
                     <h4 className="text-gray-900 mb-3 font-semibold">🎯 AI 맞춤 전략 제안</h4>
-                    <p className="text-sm text-gray-700 mb-4 leading-relaxed">
-                      위 분석 결과를 바탕으로 <span className="text-[#FFA45B] font-semibold">{strategies.length}가지 맞춤 마케팅 전략</span>을 준비했습니다. 
-                      각 전략은 신규 고객 유치와 매출 증대에 최적화되어 있습니다.
-                    </p>
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
-                        <div className="w-2 h-2 rounded-full bg-[#FFA45B] mt-2 flex-shrink-0"></div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">사전단계</p>
-                          <p className="text-xs text-gray-600">전략 수립 및 데이터 분석</p>
-                        </div>
+                    <div className="space-y-4">
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        현재 상황을 분석하여 <span className="text-[#FFA45B] font-semibold">{strategies.length}가지 맞춤 마케팅 전략</span>을 준비했습니다. 
+                        각 전략은 실행 가능한 단계별 액션으로 구성되어 있으며, 신규 고객 유치와 매출 증대에 효과적입니다.
+                      </p>
+                      
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                        <h5 className="text-sm font-semibold text-gray-800 mb-2">📊 상황 분석 요약</h5>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          앞선 대화를 통해 파악된 현재 상황과 요구사항을 바탕으로, 가장 효과적이고 실행 가능한 마케팅 전략들을 선별했습니다. 
+                          각 전략은 실제 비즈니스 환경에서 바로 적용할 수 있도록 구체적인 실행 방법과 예상 효과를 포함하고 있습니다.
+                        </p>
                       </div>
-                      <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
-                        <div className="w-2 h-2 rounded-full bg-[#FFB878] mt-2 flex-shrink-0"></div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">기획단계</p>
-                          <p className="text-xs text-gray-600">콘텐츠 기획 및 제작</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
-                        <div className="w-2 h-2 rounded-full bg-[#FFCB9A] mt-2 flex-shrink-0"></div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">실행단계</p>
-                          <p className="text-xs text-gray-600">마케팅 실행 및 홍보</p>
-                        </div>
+                      
+                      <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-200">
+                        <h5 className="text-sm font-semibold text-gray-800 mb-2">🎯 전략 특징</h5>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          제안된 전략들은 모두 <span className="text-[#FFA45B] font-semibold">창의적이면서도 실행 가능한</span> 아이디어로 구성되어 있습니다. 
+                          바이럴 마케팅, 고객 참여형 이벤트, 지역 커뮤니티 마케팅 등 다양한 접근 방식을 통해 
+                          <span className="text-[#FFA45B] font-semibold">신규 고객 유치와 기존 고객 충성도 향상</span>을 동시에 달성할 수 있습니다.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -902,25 +897,13 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FFA45B] to-[#FFB878] flex items-center justify-center">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-[#FFA45B] to-[#FFB878] bg-clip-text text-transparent">📋 마케팅 액션 플랜</h3>
+              <h3 className="text-2xl font-bold bg-gradient-to-r from-[#FFA45B] to-[#FFB878] bg-clip-text text-transparent">마케팅 액션 플랜</h3>
               {isFullscreen && (
                 <span className="text-sm text-gray-500 ml-auto">💡 더블 클릭하여 축소</span>
               )}
             </div>
             
-            {/* 간단한 요약 */}
-            <div className="ml-13 mb-4">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
-                <h4 className="text-sm font-semibold text-gray-800 mb-2">💡 사용 방법</h4>
-                <div className="space-y-2 text-sm text-gray-700">
-                  <p>• <strong>액션 선택:</strong> 원하는 액션을 선택하면 <span className="text-blue-600 font-semibold">Google 캘린더에 자동 등록</span>됩니다</p>
-                  <p>• <strong>실행 모드:</strong> <span className="text-[#FFA45B] font-semibold">직접 실행</span> (AI 도구 제공) 또는 <span className="text-blue-600 font-semibold">전문가 요청</span> (전문가 대행)</p>
-                  <p>• <strong>알림:</strong> 각 액션의 실행 날짜에 맞춰 <span className="text-green-600 font-semibold">자동 알림</span>이 발송됩니다</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Collapsible 자세히 보기 */}
+            {/* 통합 상세 가이드 */}
             <Collapsible className="ml-13">
               <CollapsibleTrigger className="flex items-center gap-2 text-sm text-[#FFA45B] hover:text-[#FF8C00] transition-colors mb-3 group">
                 <ChevronDown className="w-4 h-4 transition-transform group-data-[state=open]:rotate-180" />
@@ -928,6 +911,16 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
               </CollapsibleTrigger>
               
               <CollapsibleContent className="space-y-3 animate-fadeIn">
+                {/* 사용 방법 */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-2">💡 사용 방법</h4>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <p>• <strong>액션 선택:</strong> 원하는 액션을 선택하면 <span className="text-blue-600 font-semibold">Google 캘린더에 자동 등록</span>됩니다</p>
+                    <p>• <strong>실행 모드:</strong> <span className="text-[#FFA45B] font-semibold">직접 실행</span> (AI 도구 제공) 또는 <span className="text-blue-600 font-semibold">전문가 요청</span> (전문가 대행)</p>
+                    <p>• <strong>알림:</strong> 각 액션의 실행 날짜에 맞춰 <span className="text-green-600 font-semibold">자동 알림</span>이 발송됩니다</p>
+                  </div>
+                </div>
+
                 {/* 액션 플랜 선택 안내 */}
                 <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-l-4 border-[#FFA45B] rounded-lg p-4">
                   <h4 className="text-gray-900 mb-3 font-semibold">🎯 액션 플랜 선택하기</h4>

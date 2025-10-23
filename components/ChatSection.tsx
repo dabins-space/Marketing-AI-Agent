@@ -92,7 +92,7 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
     const loadingMessage: Message = {
       id: Date.now(),
       type: 'ai',
-        content: '🤖 AI가 맞춤형 마케팅 전략을 생성하고 있습니다...\n\n⏱️ 예상 소요 시간: 5-15초\n\n💡 4가지 서로 다른 전략을 준비하고 있어요!\n\n🔄 처리 중... 잠시만 기다려주세요.',
+        content: '🤖 AI가 맞춤형 마케팅 전략을 생성하고 있습니다...\n\n⏱️ 예상 소요 시간: 5-15초\n\n💡 2가지 서로 다른 전략을 준비하고 있어요!\n\n🔄 처리 중... 잠시만 기다려주세요.',
       showStrategyButton: false
     };
     
@@ -108,7 +108,7 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
         const updated = [...prev];
         const lastMessage = updated[updated.length - 1];
         if (lastMessage && lastMessage.type === 'ai' && lastMessage.content.includes('AI가 맞춤형 마케팅 전략을 생성하고 있습니다')) {
-          lastMessage.content = `🤖 AI가 맞춤형 마케팅 전략을 생성하고 있습니다...\n\n⏱️ 경과 시간: ${elapsed}초 / 예상 5-15초\n\n💡 4가지 서로 다른 전략을 준비하고 있어요!\n\n🔄 처리 중... 잠시만 기다려주세요.`;
+          lastMessage.content = `🤖 AI가 맞춤형 마케팅 전략을 생성하고 있습니다...\n\n⏱️ 경과 시간: ${elapsed}초 / 예상 5-15초\n\n💡 2가지 서로 다른 전략을 준비하고 있어요!\n\n🔄 처리 중... 잠시만 기다려주세요.`;
         }
         return updated;
       });
@@ -150,13 +150,9 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
         const finalTime = data.processingTime || loadingTime;
         
         if (hasUserInput) {
-          responseContent = `🎯 ${data.strategy.title}\n\n${data.strategy.overview}\n\n실행 액션들:\n${data.strategy.actions.map((action: any, index: number) => 
-            `${index + 1}. ${action.title} - ${action.duration} - ${action.method}`
-          ).join('\n')}\n\n예상 효과: ${data.strategy.expectedEffect}\n\n필요한 리소스: ${data.strategy.requiredResources}\n\n실행 일정: ${data.strategy.schedule}\n\n💡 이 전략을 캘린더에 등록하여 체계적으로 실행해보세요!\n\n⏱️ 처리 시간: ${finalTime}초`;
+          responseContent = `🎯 ${data.strategy.title}\n\n${data.strategy.overview}\n\n💡 전략 모달에서 상세 액션 플랜을 확인하고 캘린더에 등록해보세요!`;
         } else {
-          responseContent = `🎯 ${data.strategy.title}\n\n${data.strategy.overview}\n\n실행 액션들:\n${data.strategy.actions.map((action: any, index: number) => 
-            `${index + 1}. ${action.title} - ${action.duration} - ${action.method}`
-          ).join('\n')}\n\n예상 효과: ${data.strategy.expectedEffect}\n\n필요한 리소스: ${data.strategy.requiredResources}\n\n실행 일정: ${data.strategy.schedule}\n\n💡 이 전략을 캘린더에 등록하여 체계적으로 실행해보세요!\n\n📝 더 맞춤형 전략을 원하신다면?\n업종, 고객층, 목표, 예산 등 자세한 정보를 알려주시면 더욱 정확한 전략을 만들어드릴 수 있어요!\n\n⏱️ 처리 시간: ${finalTime}초`;
+          responseContent = `🎯 ${data.strategy.title}\n\n${data.strategy.overview}\n\n💡 전략 모달에서 상세 액션 플랜을 확인하고 캘린더에 등록해보세요!\n\n📝 더 맞춤형 전략을 원하신다면?\n업종, 고객층, 목표, 예산 등 자세한 정보를 알려주시면 더욱 정확한 전략을 만들어드릴 수 있어요!`;
         }
 
         const aiResponse: Message = {
