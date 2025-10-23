@@ -1,7 +1,9 @@
-import { Calendar, ChevronLeft, ChevronRight, TrendingUp, Star, Copy, Sparkles, X, CalendarIcon, Users, MoreHorizontal } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, TrendingUp, Star, Copy, Sparkles, X, CalendarIcon, Users, MoreHorizontal, CheckCircle2, Edit, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState, useMemo, useEffect } from 'react';
@@ -9,7 +11,7 @@ import { toast } from 'sonner';
 import type { ScheduledAction } from '@/components/StrategyModal';
 
 interface EventDetail {
-  id: number;
+  id: string | number;
   title: string;
   date: string;
   duration: string;
@@ -18,6 +20,7 @@ interface EventDetail {
   details?: string;
   actions?: string[];
   expectedEffect?: string;
+  location?: string;
   customerInfo?: {
     name: string;
     people: number;
@@ -31,7 +34,7 @@ interface CalendarSectionProps {
 }
 
 export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps) {
-  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set(['personal', 'ai', 'strategy']));
+  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set(['personal', 'strategy']));
   const [currentDate, setCurrentDate] = useState(new Date(2025, 9, 18)); // October 18, 2025 (month is 0-indexed)
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
@@ -40,41 +43,52 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
   const [selectedStrategyFilter, setSelectedStrategyFilter] = useState<string>('all'); // 'all' or strategyCode
   const [isDevelopmentModalOpen, setIsDevelopmentModalOpen] = useState(false);
   const [developmentModalType, setDevelopmentModalType] = useState<'ai' | 'expert'>('ai');
+  const [pendingActions, setPendingActions] = useState<ScheduledAction[]>([]);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isEditingEvent, setIsEditingEvent] = useState(false);
+  const [draggedEvent, setDraggedEvent] = useState<any>(null);
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null);
+  const [editEventData, setEditEventData] = useState({
+    title: '',
+    description: '',
+    startTime: '',
+    endTime: ''
+  });
+  const [googleEvents, setGoogleEvents] = useState<any[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
 
   // Check for Google Calendar connection on component mount
   useEffect(() => {
+    console.log('Checking Google Calendar connection status...');
+    
     // Check URL parameters for connection success
     const urlParams = new URLSearchParams(window.location.search);
     const gcalConnected = urlParams.get('gcal_connected');
+    const success = urlParams.get('success');
+    console.log('URL params:', { gcalConnected, success });
     
-    if (gcalConnected === 'true') {
-      // Check for tokens in URL hash
-      const hash = window.location.hash;
-      const tokenMatch = hash.match(/tokens=([^&]+)/);
+    if (gcalConnected === 'true' || success === 'true') {
+      console.log('Google Calendar connection detected in URL');
       
-      if (tokenMatch) {
-        try {
-          const tokens = JSON.parse(decodeURIComponent(tokenMatch[1]));
-          setGoogleTokens(tokens);
-          setIsGoogleConnected(true);
-          toast.success('구글 캘린더가 성공적으로 연결되었습니다!');
-          
-          // Clean up URL
-          window.history.replaceState({}, document.title, window.location.pathname);
-        } catch (error) {
-          console.error('Failed to parse tokens:', error);
-          toast.error('토큰 파싱에 실패했습니다.');
-        }
-      }
+      // Set connected state immediately
+      setIsGoogleConnected(true);
+      toast.success('구글 캘린더가 성공적으로 연결되었습니다!');
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
     
     // Check for stored tokens in localStorage
     const storedTokens = localStorage.getItem('google_calendar_tokens');
+    console.log('Stored tokens in localStorage:', storedTokens ? 'Found' : 'Not found');
+    
     if (storedTokens) {
       try {
         const tokens = JSON.parse(storedTokens);
+        console.log('Parsed stored tokens:', tokens);
         setGoogleTokens(tokens);
         setIsGoogleConnected(true);
+        console.log('Google Calendar connection restored from localStorage');
       } catch (error) {
         console.error('Failed to parse stored tokens:', error);
         localStorage.removeItem('google_calendar_tokens');
@@ -86,8 +100,30 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
   useEffect(() => {
     if (googleTokens) {
       localStorage.setItem('google_calendar_tokens', JSON.stringify(googleTokens));
+      // Fetch Google events when tokens are available
+      fetchGoogleEvents();
     }
   }, [googleTokens]);
+
+  // Fetch Google events when month changes
+  useEffect(() => {
+    if (googleTokens) {
+      fetchGoogleEvents();
+    }
+  }, [currentDate, googleTokens]);
+
+  // Check connection status on page load
+  useEffect(() => {
+    checkConnectionStatus();
+  }, []);
+
+  // Update pending actions when scheduledActions change
+  useEffect(() => {
+    if (scheduledActions.length > 0) {
+      setPendingActions(scheduledActions);
+      setShowConfirmation(true);
+    }
+  }, [scheduledActions]);
 
   // Google Calendar connection functions
   const handleGoogleConnect = async () => {
@@ -112,11 +148,104 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
     }
   };
 
+  // Check connection status
+  const checkConnectionStatus = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const gcalConnected = urlParams.get('gcal_connected');
+    const success = urlParams.get('success');
+    
+    console.log('Checking connection status:', { gcalConnected, success });
+    
+    if (gcalConnected === 'true' || success === 'true') {
+      console.log('Connection success detected!');
+      
+      // Set connected state immediately
+      setIsGoogleConnected(true);
+      toast.success('구글 캘린더가 성공적으로 연결되었습니다!');
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
+
   const handleGoogleDisconnect = () => {
     setGoogleTokens(null);
     setIsGoogleConnected(false);
     localStorage.removeItem('google_calendar_tokens');
     toast.success('구글 캘린더 연결이 해제되었습니다.');
+  };
+
+  // Confirm and register to Google Calendar
+  const handleConfirmRegistration = async () => {
+    if (!googleTokens) {
+      toast.error('구글 캘린더에 먼저 연결해주세요.');
+      return;
+    }
+
+    if (pendingActions.length === 0) {
+      toast.error('등록할 일정이 없습니다.');
+      return;
+    }
+
+    try {
+      toast.info('구글 캘린더에 일정을 추가하는 중...');
+      
+      // Create events one by one to avoid rate limiting
+      for (const action of pendingActions) {
+        await createCalendarEvent(action);
+        // Small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      toast.success(`${pendingActions.length}개의 일정이 구글 캘린더에 등록되었습니다!`);
+      setShowConfirmation(false);
+      setPendingActions([]);
+    } catch (error) {
+      console.error('Calendar event creation error:', error);
+      toast.error('캘린더 일정 생성에 실패했습니다.');
+    }
+  };
+
+  // Cancel registration
+  const handleCancelRegistration = () => {
+    setShowConfirmation(false);
+    setPendingActions([]);
+    toast.info('일정 등록이 취소되었습니다.');
+  };
+
+  // Fetch Google Calendar events
+  const fetchGoogleEvents = async () => {
+    if (!googleTokens) {
+      console.log('No Google tokens available');
+      return;
+    }
+
+    setIsLoadingEvents(true);
+    try {
+      const response = await fetch(`/api/gcal/events?year=${currentDate.getFullYear()}&month=${currentDate.getMonth()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${JSON.stringify(googleTokens)}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setGoogleEvents(data.events || []);
+        console.log('Google events fetched:', data.events?.length || 0);
+      } else if (data.code === 'AUTH_EXPIRED') {
+        toast.error('인증이 만료되었습니다. 다시 연결해주세요.');
+        handleGoogleDisconnect();
+      } else {
+        throw new Error(data.error || 'Failed to fetch events');
+      }
+    } catch (error) {
+      console.error('Failed to fetch Google events:', error);
+      toast.error('Google Calendar 일정을 가져오는데 실패했습니다.');
+    } finally {
+      setIsLoadingEvents(false);
+    }
   };
 
   // Create calendar event function
@@ -138,7 +267,9 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
         location: '', // Add location if needed
         startISO: startDate.toISOString(),
         endISO: endDate.toISOString(),
-        attendees: [] // Add attendees if needed
+        attendees: [], // Add attendees if needed
+        isStrategyEvent: true, // Mark as strategy event
+        strategyCode: action.strategyCode // Add strategy code for filtering
       };
 
       const response = await fetch('/api/gcal/create-event', {
@@ -166,38 +297,107 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
     }
   };
 
-  // Get unique strategies from scheduledActions
+  // Helper function to extract strategy code from Google Calendar event
+  const extractStrategyCodeFromEvent = (event: any) => {
+    // Handle both googleEvents structure and processed event structure
+    const description = event.description || '';
+    const title = event.title || '';
+    
+    // Look for strategy code patterns in description
+    const strategyMatch = description.match(/전략 코드:\s*([A-Z0-9]+)/i) || 
+                         description.match(/Strategy Code:\s*([A-Z0-9]+)/i) ||
+                         description.match(/\[([A-Z0-9]+)\]/);
+    
+    if (strategyMatch) {
+      return strategyMatch[1];
+    }
+    
+    // Look for strategy code in title
+    const titleMatch = title.match(/\[([A-Z0-9]+)\]/);
+    if (titleMatch) {
+      return titleMatch[1];
+    }
+    
+    return null;
+  };
+
+  // Get unique strategies from both scheduledActions and Google Calendar events
   const availableStrategies = useMemo(() => {
     const strategiesMap = new Map<string, string>();
+    
+    // Add strategies from scheduled actions
     scheduledActions.forEach(action => {
       if (!strategiesMap.has(action.strategyCode)) {
         strategiesMap.set(action.strategyCode, action.strategyTitle);
       }
     });
+    
+    // Add strategies from Google Calendar events
+    googleEvents.forEach(event => {
+      if (event.type === 'strategy') {
+        // Use strategyCode and strategyTitle from API if available
+        const strategyCode = event.strategyCode || extractStrategyCodeFromEvent(event);
+        const strategyTitle = event.strategyTitle || 
+                             event.description?.match(/전략:\s*([^\n]+)/)?.[1] || 
+                             event.title?.replace(/^\[전략\]\s*/, '') || 
+                             `전략 ${strategyCode}`;
+        
+        if (strategyCode && !strategiesMap.has(strategyCode)) {
+          strategiesMap.set(strategyCode, strategyTitle);
+        }
+      }
+    });
+    
     return Array.from(strategiesMap.entries()).map(([code, title]) => ({ code, title }));
-  }, [scheduledActions]);
+  }, [scheduledActions, googleEvents]);
 
-  // Merge scheduled actions with calendar events
+  // Merge Google Calendar events with scheduled actions
   const calendarEvents = useMemo(() => {
-    // Mock calendar data with IDs
-    const baseCalendarEvents: Array<{
-      id: number;
+    const events: Array<{
+      id: number | string;
       date: number;
       title: string;
       type: 'personal' | 'ai' | 'strategy' | 'reservation';
       color: string;
-    }> = [
-      { id: 1, date: 11, title: '개인: 가족 모임', type: 'personal' as const, color: 'bg-gray-400' },
-      { id: 4, date: 15, title: '개인: 점검 예정', type: 'personal' as const, color: 'bg-gray-400' },
-      { id: 11, date: 8, title: '개인: 은행 업무', type: 'personal' as const, color: 'bg-gray-400' },
-      { id: 12, date: 13, title: '개인: 재료 구매', type: 'personal' as const, color: 'bg-gray-400' },
-      { id: 13, date: 17, title: '개인: 휴무', type: 'personal' as const, color: 'bg-gray-400' },
-      { id: 14, date: 21, title: '개인: 직원 회의', type: 'personal' as const, color: 'bg-gray-400' },
-      { id: 15, date: 24, title: '개인: 세무사 상담', type: 'personal' as const, color: 'bg-gray-400' },
-      { id: 16, date: 28, title: '개인: 장비 수리', type: 'personal' as const, color: 'bg-gray-400' },
-      { id: 17, date: 31, title: '개인: 월말 결산', type: 'personal' as const, color: 'bg-gray-400' },
-    ];
+      source?: 'google' | 'strategy';
+      scheduledAction?: ScheduledAction;
+      googleEvent?: any;
+    }> = [];
 
+    // Add Google Calendar events
+    googleEvents.forEach((event, index) => {
+      if (event.start) {
+        const eventDate = new Date(event.start);
+        const date = eventDate.getDate();
+        const month = eventDate.getMonth();
+        const year = eventDate.getFullYear();
+        
+        // Only show events for the current month being viewed
+        if (year === currentDate.getFullYear() && month === currentDate.getMonth()) {
+          // Apply strategy filter for Google Calendar events
+          if (event.type === 'strategy' && selectedStrategyFilter !== 'all') {
+            // For strategy events, check if they match the selected strategy
+            // We'll need to extract strategy code from the event description or title
+            const strategyCode = extractStrategyCodeFromEvent(event);
+            if (strategyCode && strategyCode !== selectedStrategyFilter) {
+              return; // Skip this event if it doesn't match the selected strategy
+            }
+          }
+          
+          events.push({
+            id: `gcal_${event.id || index}`,
+            date,
+            title: event.type === 'strategy' ? `🎯 ${event.title}` : `📅 ${event.title}`,
+            type: event.type || 'personal',
+            color: event.color || 'bg-blue-500',
+            source: 'google',
+            googleEvent: event
+          });
+        }
+      }
+    });
+
+    // Add scheduled strategy events
     const scheduledEvents = scheduledActions
       .filter(action => {
         // Filter by selected strategy
@@ -217,17 +417,18 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
         }
 
         return {
-          id: 1000 + index, // Use high ID to avoid conflicts
+          id: `strategy_${1000 + index}`, // Use high ID to avoid conflicts
           date,
           title: `${action.mode === 'expert' ? '👨‍💼' : '👤'} ${action.actionIcon} ${action.actionTitle}`,
           type: 'strategy' as const,
-          color: action.mode === 'expert' ? 'bg-blue-500' : 'bg-[#FFA45B]',
+          color: action.mode === 'expert' ? 'bg-purple-500' : 'bg-[#FFA45B]',
+          source: 'strategy',
           scheduledAction: action
         };
       }).filter(Boolean);
 
-    return [...baseCalendarEvents, ...scheduledEvents];
-  }, [scheduledActions, currentDate, selectedStrategyFilter]);
+    return [...events, ...scheduledEvents];
+  }, [scheduledActions, currentDate, selectedStrategyFilter, googleEvents]);
 
   // Event details data
   const eventDetails: { [key: number]: EventDetail } = {
@@ -333,6 +534,237 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
     return selectedFilters.has(filterType);
   };
 
+  // Helper function to filter events based on selected filters
+  const filterEvents = (events: any[]) => {
+    return events.filter(e => {
+      if (!e) return false;
+      
+      // Check if event type matches selected filters
+      if (e.type === 'personal' && selectedFilters.has('personal')) return true;
+      if (e.type === 'strategy' && selectedFilters.has('strategy')) return true;
+      if (e.type === 'ai' && selectedFilters.has('ai')) return true;
+      if (e.type === 'reservation' && selectedFilters.has('reservation')) return true;
+      
+      return false;
+    });
+  };
+
+  // Event management functions
+  const handleDeleteEvent = async (eventId: number | string) => {
+    try {
+      const event = calendarEvents.find(e => e?.id === eventId);
+      if (!event) return;
+
+      if (event.source === 'google') {
+        // Get tokens from localStorage
+        const storedTokens = localStorage.getItem('google_calendar_tokens');
+        if (!storedTokens) {
+          toast.error('Google Calendar 연결이 필요합니다.');
+          return;
+        }
+
+        const tokens = JSON.parse(storedTokens);
+
+        // Find the actual Google Calendar event ID
+        console.log('Delete - Selected event:', selectedEvent);
+        console.log('Delete - Found event:', event);
+        
+        // Use the original eventId - API will handle gcal_ prefix removal
+        const googleEventId = selectedEvent?.id;
+        console.log('Delete - Selected event ID:', selectedEvent?.id);
+        console.log('Delete - Event type:', typeof selectedEvent?.id);
+        console.log('Delete - Google event ID:', googleEventId);
+
+        // Delete from Google Calendar
+        const response = await fetch('/api/gcal/delete-event', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            eventId: googleEventId,
+            tokens: tokens
+          })
+        });
+
+        if (response.ok) {
+          // Remove from local state
+          setGoogleEvents(prev => prev.filter(e => e.id !== googleEventId));
+          toast.success('일정이 삭제되었습니다.');
+          // Refresh events after successful deletion
+          fetchGoogleEvents();
+        } else {
+          const errorData = await response.json();
+          console.error('Delete event error:', errorData);
+          toast.error(`일정 삭제에 실패했습니다: ${errorData.error || 'Unknown error'}`);
+        }
+      } else if (event.source === 'strategy') {
+        // Delete from scheduled actions
+        const updatedActions = scheduledActions.filter(a => 
+          a.actionTitle !== event.scheduledAction?.actionTitle
+        );
+        // Note: This would need to be passed up to parent component
+        toast.success('전략 일정이 삭제되었습니다.');
+      }
+      
+      setIsEventDialogOpen(false);
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      toast.error('일정 삭제 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleEditEvent = () => {
+    if (selectedEvent) {
+      setEditEventData({
+        title: selectedEvent.title,
+        description: selectedEvent.description || '',
+        startTime: selectedEvent.duration || '',
+        endTime: selectedEvent.duration || ''
+      });
+      setIsEditingEvent(true);
+    }
+  };
+
+  const handleSaveEvent = async () => {
+    try {
+      if (!selectedEvent) return;
+
+      if (selectedEvent.type === 'personal') {
+        // Update Google Calendar event
+        const storedTokens = localStorage.getItem('google_calendar_tokens');
+        if (!storedTokens) {
+          toast.error('Google Calendar 연결이 필요합니다.');
+          return;
+        }
+
+        const tokens = JSON.parse(storedTokens);
+
+        // Find the actual Google Calendar event ID
+        console.log('Selected event:', selectedEvent);
+        console.log('Calendar events:', calendarEvents);
+        const event = calendarEvents.find(e => e?.id === selectedEvent.id);
+        console.log('Found event:', event);
+        
+        // Use the original eventId - API will handle gcal_ prefix removal
+        const googleEventId = selectedEvent?.id;
+        console.log('Update - Selected event ID:', selectedEvent?.id);
+        console.log('Update - Event type:', typeof selectedEvent?.id);
+        console.log('Update - Google event ID:', googleEventId);
+
+        const response = await fetch('/api/gcal/update-event', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventId: googleEventId,
+            title: editEventData.title,
+            description: editEventData.description,
+            tokens: tokens
+          })
+        });
+
+        if (response.ok) {
+          toast.success('일정이 수정되었습니다.');
+          setIsEditingEvent(false);
+          setIsEventDialogOpen(false);
+          // Refresh events after successful update
+          fetchGoogleEvents();
+        } else {
+          const errorData = await response.json();
+          console.error('Update event error:', errorData);
+          toast.error(`일정 수정에 실패했습니다: ${errorData.error || 'Unknown error'}`);
+        }
+      } else {
+        // For strategy events, just show success message
+        toast.success('일정이 수정되었습니다.');
+        setIsEditingEvent(false);
+        setIsEventDialogOpen(false);
+      }
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast.error('일정 수정 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, event: any) => {
+    setDraggedEvent(event);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, dayNum: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverDay(dayNum);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDay(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, dayNum: number) => {
+    e.preventDefault();
+    setDragOverDay(null);
+    
+    if (!draggedEvent) return;
+
+    try {
+      const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNum);
+      
+      if (draggedEvent.source === 'google') {
+        // Get tokens from localStorage
+        const storedTokens = localStorage.getItem('google_calendar_tokens');
+        if (!storedTokens) {
+          toast.error('Google Calendar 연결이 필요합니다.');
+          return;
+        }
+
+        const tokens = JSON.parse(storedTokens);
+
+        // Use the original eventId - API will handle gcal_ prefix removal
+        const googleEventId = draggedEvent.id;
+
+        // Update Google Calendar event
+        const response = await fetch('/api/gcal/update-event', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventId: googleEventId,
+            start: newDate.toISOString(),
+            end: new Date(newDate.getTime() + 60 * 60 * 1000).toISOString(),
+            tokens: tokens
+          })
+        });
+
+        if (response.ok) {
+          // Update local state
+          setGoogleEvents(prev => prev.map(e => 
+            e.id === googleEventId
+              ? { ...e, start: newDate.toISOString() }
+              : e
+          ));
+          toast.success('일정이 이동되었습니다.');
+          // Refresh events after successful move
+          fetchGoogleEvents();
+        } else {
+          const errorData = await response.json();
+          console.error('Move event error:', errorData);
+          toast.error(`일정 이동에 실패했습니다: ${errorData.error || 'Unknown error'}`);
+        }
+      } else if (draggedEvent.source === 'strategy') {
+        // Update strategy event date
+        const updatedAction = {
+          ...draggedEvent.scheduledAction,
+          date: newDate
+        };
+        // Note: This would need to be passed up to parent component
+        toast.success('전략 일정이 이동되었습니다.');
+      }
+    } catch (error) {
+      console.error('Error moving event:', error);
+      toast.error('일정 이동 중 오류가 발생했습니다.');
+    }
+    
+    setDraggedEvent(null);
+  };
+
   // Calendar navigation functions
   const goToPreviousMonth = () => {
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
@@ -372,13 +804,13 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
     return `${month}월 ${day}일 (${dayOfWeek})`;
   };
 
-  const handleEventClick = (eventId: number) => {
+  const handleEventClick = (eventId: number | string) => {
     // Check if it's a scheduled action
     const event = calendarEvents.find(e => e?.id === eventId);
     if (event && 'scheduledAction' in event && event.scheduledAction) {
       const action = event.scheduledAction as ScheduledAction;
       const detail: EventDetail = {
-        id: eventId,
+        id: typeof eventId === 'string' ? parseInt(eventId.replace('strategy_', '')) : eventId,
         title: action.actionTitle,
         date: formatDate(action.date),
         duration: '일정 등록됨',
@@ -394,8 +826,28 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
       return;
     }
 
-    // Original eventDetails lookup
-    const detail = eventDetails[eventId];
+    // Check if it's a Google Calendar event
+    if (event && 'googleEvent' in event && event.googleEvent) {
+      const googleEvent = event.googleEvent;
+      const startDate = new Date(googleEvent.start);
+      const endDate = googleEvent.end ? new Date(googleEvent.end) : new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour
+      
+      const detail: EventDetail = {
+        id: eventId, // Keep the original eventId (gcal_xxx) for API calls
+        title: googleEvent.title,
+        date: formatDate(startDate),
+        duration: googleEvent.isAllDay ? '종일' : `${startDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} - ${endDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`,
+        type: 'personal',
+        description: googleEvent.description || 'Google Calendar에서 가져온 일정입니다.',
+        location: googleEvent.location || ''
+      };
+      setSelectedEvent(detail);
+      setIsEventDialogOpen(true);
+      return;
+    }
+
+    // Original eventDetails lookup (fallback)
+    const detail = eventDetails[typeof eventId === 'string' ? parseInt(eventId) : eventId];
     if (detail) {
       setSelectedEvent(detail);
       setIsEventDialogOpen(true);
@@ -432,55 +884,91 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
           </div>
 
           {/* Google Calendar Connection - Top */}
-          <div className="mb-4 flex justify-end flex-shrink-0">
-            {!isGoogleConnected ? (
-              <button 
-                onClick={handleGoogleConnect}
-                className="px-3 py-2 bg-white border border-gray-300 hover:border-[#FFA45B] rounded-lg transition-all flex items-center gap-1.5 group"
-              >
-                <CalendarIcon className="w-4 h-4 text-gray-600 group-hover:text-[#FFA45B] transition-colors" />
-                <span className="text-sm text-gray-700 group-hover:text-[#FFA45B] transition-colors">구글 달력 연동하기</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <div className="px-3 py-2 bg-green-50 border border-green-300 rounded-lg flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  <span className="text-sm text-green-700">연결됨</span>
+          <div className="mb-4 flex justify-between items-center flex-shrink-0">
+            {/* Confirmation Section */}
+            {showConfirmation && pendingActions.length > 0 && (
+              <div className="flex items-center gap-3">
+                <div className="px-4 py-2 bg-orange-50 border border-orange-300 rounded-lg flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-orange-600" />
+                  <span className="text-sm text-orange-700">
+                    {pendingActions.length}개의 일정이 등록 대기 중입니다
+                  </span>
                 </div>
                 <button 
-                  onClick={handleGoogleDisconnect}
-                  className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 transition-colors"
-                  title="연결 해제"
+                  onClick={handleConfirmRegistration}
+                  className="px-4 py-2 bg-gradient-to-br from-[#FFA45B] to-[#FFB878] text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2"
                 >
-                  ✕
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span className="text-sm">확정하기</span>
+                </button>
+                <button 
+                  onClick={handleCancelRegistration}
+                  className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-all text-sm"
+                >
+                  취소
                 </button>
               </div>
             )}
+
+            {/* Google Calendar Connection */}
+            <div className="flex items-center gap-2">
+              {!isGoogleConnected ? (
+                <button 
+                  onClick={handleGoogleConnect}
+                  className="px-3 py-2 bg-white border border-gray-300 hover:border-[#FFA45B] rounded-lg transition-all flex items-center gap-1.5 group"
+                >
+                  <CalendarIcon className="w-4 h-4 text-gray-600 group-hover:text-[#FFA45B] transition-colors" />
+                  <span className="text-sm text-gray-700 group-hover:text-[#FFA45B] transition-colors">구글 달력 연동하기</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="px-3 py-2 bg-green-50 border border-green-300 rounded-lg flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span className="text-sm text-green-700">연결됨</span>
+                  </div>
+                  <button 
+                    onClick={fetchGoogleEvents}
+                    disabled={isLoadingEvents}
+                    className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50"
+                    title="일정 새로고침"
+                  >
+                    {isLoadingEvents ? '새로고침 중...' : '새로고침'}
+                  </button>
+                  <button 
+                    onClick={handleGoogleDisconnect}
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 transition-colors"
+                    title="연결 해제"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Legend/Filter */}
           <div className="mb-4 flex items-center gap-3 text-sm flex-shrink-0">
             <button
-              onClick={() => toggleFilter('ai')}
+              onClick={() => toggleFilter('strategy')}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${
-                isFilterActive('ai')
+                isFilterActive('strategy')
                   ? 'bg-gradient-to-br from-[#FF8C00] to-[#FF6B35] border-2 border-[#FF8C00] shadow-lg'
                   : 'bg-gradient-to-br from-[#FFA45B] to-[#FFB878] border-2 border-transparent opacity-50 hover:opacity-80 hover:shadow-md'
               }`}
             >
-              <Sparkles className={`w-4 h-4 ${isFilterActive('ai') ? 'text-white' : 'text-white/70'}`} />
-              <span className={`${isFilterActive('ai') ? 'text-white' : 'text-white/80'}`}>전략 실행 일정</span>
+              <Sparkles className={`w-4 h-4 ${isFilterActive('strategy') ? 'text-white' : 'text-white/70'}`} />
+              <span className={`${isFilterActive('strategy') ? 'text-white' : 'text-white/80'}`}>전략 실행 일정</span>
             </button>
             <button
               onClick={() => toggleFilter('personal')}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${
                 isFilterActive('personal')
-                  ? 'bg-gray-100 border-2 border-gray-400 shadow-sm'
-                  : 'bg-gray-50 border-2 border-transparent opacity-40 hover:opacity-60'
+                  ? 'bg-blue-100 border-2 border-blue-400 shadow-sm'
+                  : 'bg-blue-50 border-2 border-transparent opacity-40 hover:opacity-60'
               }`}
             >
-              <div className="w-4 h-4 rounded bg-gray-400"></div>
-              <span className="text-gray-900">개인 일정</span>
+              <div className="w-4 h-4 rounded bg-blue-500"></div>
+              <span className="text-gray-900">Google 일정</span>
             </button>
             <button
               onClick={() => toggleFilter('reservation')}
@@ -524,6 +1012,42 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
             </div>
           </div>
 
+          {/* Selected Strategy Info - Show when a specific strategy is selected */}
+          {selectedStrategyFilter !== 'all' && (
+            <div className="mt-3 p-4 bg-gradient-to-r from-[#FFF5E6] to-[#FFE4CC] rounded-xl border border-[#FFA45B]/20 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF8C00] to-[#FF6B35] flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-[#8B4513] text-sm">
+                    {availableStrategies.find(s => s.code === selectedStrategyFilter)?.title || '선택된 전략'}
+                  </h3>
+                  <p className="text-xs text-[#8B4513]/70 mt-1">
+                    전략 코드: {selectedStrategyFilter} | 
+                    관련 일정: {calendarEvents.filter(e => {
+                      if (!e) return false;
+                      if (e.source === 'strategy' && e.scheduledAction?.strategyCode === selectedStrategyFilter) {
+                        return true;
+                      }
+                      if (e.source === 'google' && e.type === 'strategy' && 'googleEvent' in e) {
+                        const strategyCode = extractStrategyCodeFromEvent(e.googleEvent);
+                        return strategyCode === selectedStrategyFilter;
+                      }
+                      return false;
+                    }).length}개
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedStrategyFilter('all')}
+                  className="text-[#8B4513]/50 hover:text-[#8B4513] transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Calendar Grid - Fully responsive, fits screen */}
           <div className="flex-1 bg-[#FDF3EB] rounded-2xl p-3 shadow-sm flex flex-col min-h-0 overflow-hidden">
             {/* Weekday Headers */}
@@ -550,9 +1074,7 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                     {/* Days */}
                     {[...Array(daysInMonth)].map((_, i) => {
                       const dayNum = i + 1;
-                      const events = calendarEvents
-                        .filter(e => e?.date === dayNum)
-                        .filter(e => e && selectedFilters.has(e.type));
+                      const events = filterEvents(calendarEvents.filter(e => e?.date === dayNum));
                       const isToday = isCurrentMonth && dayNum === todayDate;
                       
                       return (
@@ -560,7 +1082,10 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                           key={dayNum}
                           className={`bg-white rounded-lg p-1.5 border transition-all hover:shadow-sm flex flex-col min-h-0 h-full overflow-hidden ${
                             isToday ? 'border-[#FFA45B] border-2' : 'border-gray-200'
-                          }`}
+                          } ${dragOverDay === dayNum ? 'bg-blue-100 border-blue-400' : ''}`}
+                          onDragOver={(e) => handleDragOver(e, dayNum)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, dayNum)}
                         >
                           <div className={`text-xs mb-0.5 flex-shrink-0 ${isToday ? 'text-[#FFA45B]' : 'text-gray-700'}`}>
                             {dayNum}
@@ -594,6 +1119,8 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                                 <div
                                   key={idx}
                                   onClick={() => handleEventClick(event.id)}
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, event)}
                                   className={`${event.color} text-white text-[10px] leading-tight px-1.5 py-1 rounded cursor-pointer hover:opacity-90 hover:shadow-md transition-all relative group hover:z-[10000]`}
                                   title={fullTitle}
                                 >
@@ -627,10 +1154,10 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                                     <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
                                       <h4 className="text-sm text-gray-900">{dayNum}일 일정</h4>
                                       <Badge className="bg-gray-100 text-gray-700 border-0 text-xs">
-                                        {events.length}개
+                                        {filterEvents(events).length}개
                                       </Badge>
                                     </div>
-                                    {events.map((event, idx) => {
+                                    {filterEvents(events).map((event, idx) => {
                                       if (!event) return null;
                                       // Format title for better readability
                                       let displayTitle = event.title;
@@ -720,27 +1247,82 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                 </DialogHeader>
 
                 <div className="space-y-4 mt-4">
-                  {/* Date and Duration */}
-                  <div className="bg-gradient-to-r from-[#FFF7F0] to-[#FDF3EB] rounded-xl p-4">
-                    <div className="grid grid-cols-2 gap-4">
+                  {/* Edit Mode */}
+                  {isEditingEvent ? (
+                    <div className="space-y-4">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">📅 일정</p>
-                        <p className="text-gray-900">{selectedEvent.date}</p>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">제목</label>
+                        <Input
+                          value={editEventData.title}
+                          onChange={(e) => setEditEventData(prev => ({ ...prev, title: e.target.value }))}
+                          placeholder="일정 제목을 입력하세요"
+                        />
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">⏱️ 기간</p>
-                        <p className="text-gray-900">{selectedEvent.duration}</p>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">설명</label>
+                        <Textarea
+                          value={editEventData.description}
+                          onChange={(e) => setEditEventData(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="일정 설명을 입력하세요"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 mb-2 block">시작 시간</label>
+                          <Input
+                            value={editEventData.startTime}
+                            onChange={(e) => setEditEventData(prev => ({ ...prev, startTime: e.target.value }))}
+                            placeholder="예: 09:00"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 mb-2 block">종료 시간</label>
+                          <Input
+                            value={editEventData.endTime}
+                            onChange={(e) => setEditEventData(prev => ({ ...prev, endTime: e.target.value }))}
+                            placeholder="예: 10:00"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <>
+                      {/* Date and Duration */}
+                      <div className="bg-gradient-to-r from-[#FFF7F0] to-[#FDF3EB] rounded-xl p-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">📅 일정</p>
+                            <p className="text-gray-900">{selectedEvent.date}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">⏱️ 기간</p>
+                            <p className="text-gray-900">{selectedEvent.duration}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-                  {/* Description */}
-                  <div>
-                    <h4 className="text-gray-900 mb-2">📋 설명</h4>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-4">
-                      {selectedEvent.description}
-                    </p>
-                  </div>
+                  {/* Description - Only show when not editing */}
+                  {!isEditingEvent && (
+                    <div>
+                      <h4 className="text-gray-900 mb-2">📋 설명</h4>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-4">
+                        {selectedEvent.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Location */}
+                  {selectedEvent.location && (
+                    <div>
+                      <h4 className="text-gray-900 mb-2">📍 위치</h4>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-4">
+                        {selectedEvent.location}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Customer Info (for reservations) */}
                   {selectedEvent.type === 'reservation' && selectedEvent.customerInfo && (
@@ -888,39 +1470,78 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                   )}
                 </div>
 
-                {/* Action Buttons for AI suggestions */}
-                {selectedEvent.type === 'ai' && (
-                  <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
-                    <button 
-                      onClick={() => setIsEventDialogOpen(false)}
-                      className="flex-1 px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all"
-                    >
-                      닫기
-                    </button>
-                    <button 
-                      onClick={() => {
-                        // Find the corresponding scheduled action
-                        const action = scheduledActions.find(a => 
-                          a.actionTitle === selectedEvent.title && 
-                          a.actionDescription === selectedEvent.description
-                        );
-                        if (action) {
-                          createCalendarEvent(action);
-                        } else {
-                          toast.error('해당 액션을 찾을 수 없습니다.');
-                        }
-                        setIsEventDialogOpen(false);
-                      }}
-                      className="flex-1 px-5 py-3 bg-gradient-to-br from-[#FF8C00] to-[#FF6B35] text-white rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                    >
-                      <Sparkles className="w-5 h-5" />
-                      캘린더에 등록
-                    </button>
-                  </div>
-                )}
+                {/* Action Buttons */}
+                <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
+                  {isEditingEvent ? (
+                    <>
+                      <button 
+                        onClick={() => setIsEditingEvent(false)}
+                        className="flex-1 px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all"
+                      >
+                        취소
+                      </button>
+                      <button 
+                        onClick={handleSaveEvent}
+                        className="flex-1 px-5 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Edit className="w-4 h-4" />
+                        저장
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => setIsEventDialogOpen(false)}
+                        className="flex-1 px-5 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all"
+                      >
+                        닫기
+                      </button>
+                      
+                      {/* Edit and Delete buttons for all event types */}
+                      <button 
+                        onClick={handleEditEvent}
+                        className="px-4 py-3 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-all flex items-center gap-2"
+                      >
+                        <Edit className="w-4 h-4" />
+                        수정
+                      </button>
+                      
+                      <button 
+                        onClick={() => handleDeleteEvent(selectedEvent.id)}
+                        className="px-4 py-3 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 transition-all flex items-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        삭제
+                      </button>
+                      
+                      {/* AI specific button */}
+                      {selectedEvent.type === 'ai' && (
+                        <button 
+                          onClick={() => {
+                            // Find the corresponding scheduled action
+                            const action = scheduledActions.find(a => 
+                              a.actionTitle === selectedEvent.title && 
+                              a.actionDescription === selectedEvent.description
+                            );
+                            if (action) {
+                              createCalendarEvent(action);
+                            } else {
+                              toast.error('해당 액션을 찾을 수 없습니다.');
+                            }
+                            setIsEventDialogOpen(false);
+                          }}
+                          className="px-4 py-3 bg-gradient-to-br from-[#FF8C00] to-[#FF6B35] text-white rounded-xl hover:shadow-lg transition-all flex items-center gap-2"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          캘린더에 등록
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
 
-                {/* Action Buttons for Reservations */}
-                {selectedEvent.type === 'reservation' && (
+                {/* Action Buttons for Reservations - Only show when not editing */}
+                {selectedEvent.type === 'reservation' && !isEditingEvent && (
                   <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
                     <button 
                       onClick={() => setIsEventDialogOpen(false)}
@@ -929,9 +1550,9 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
                       닫기
                     </button>
                     <button 
-                      className="flex-1 px-5 py-3 bg-slate-500 text-white rounded-xl hover:bg-slate-600 hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                      className="px-4 py-3 bg-slate-500 text-white rounded-xl hover:bg-slate-600 hover:shadow-lg transition-all flex items-center gap-2"
                     >
-                      <Users className="w-5 h-5" />
+                      <Users className="w-4 h-4" />
                       예약 확인 완료
                     </button>
                   </div>

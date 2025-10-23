@@ -18,6 +18,8 @@ interface ChatSectionProps {
 export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<number | null>(null);
+  const [generatedStrategy, setGeneratedStrategy] = useState<any>(null);
+  const [loadingTime, setLoadingTime] = useState<number>(0);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
@@ -40,9 +42,16 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Only auto-scroll for new user messages or AI responses, not for loading messages
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const lastMessage = messages[messages.length - 1];
+    // Don't auto-scroll if it's a loading message or if user is typing
+    if (lastMessage && 
+        !lastMessage.content.includes('AI가 맞춤형 마케팅 전략을 생성하고 있습니다') &&
+        !isTyping) {
+      scrollToBottom();
+    }
+  }, [messages, isTyping]);
 
   const handleSelectStrategy = (id: number) => {
     setSelectedStrategy(id);
@@ -64,7 +73,7 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
     }, 600);
   };
 
-  const handleStrategyGeneration = () => {
+  const handleStrategyGeneration = async () => {
     // Add user message
     const userMessage: Message = {
       id: Date.now(),
@@ -75,18 +84,138 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
     
-    // Add AI response after a short delay
-    setTimeout(() => {
-      setIsTyping(false);
-      const aiResponse: Message = {
+    // Start loading time measurement
+    const startTime = Date.now();
+    setLoadingTime(0);
+    
+    // Add loading message
+    const loadingMessage: Message = {
+      id: Date.now(),
+      type: 'ai',
+        content: '🤖 AI가 맞춤형 마케팅 전략을 생성하고 있습니다...\n\n⏱️ 예상 소요 시간: 5-15초\n\n💡 4가지 서로 다른 전략을 준비하고 있어요!\n\n🔄 처리 중... 잠시만 기다려주세요.',
+      showStrategyButton: false
+    };
+    
+    setMessages(prev => [...prev, loadingMessage]);
+    
+    // Update loading time every 500ms for more responsive feedback
+    const loadingInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      setLoadingTime(elapsed);
+      
+      // Update loading message with elapsed time
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastMessage = updated[updated.length - 1];
+        if (lastMessage && lastMessage.type === 'ai' && lastMessage.content.includes('AI가 맞춤형 마케팅 전략을 생성하고 있습니다')) {
+          lastMessage.content = `🤖 AI가 맞춤형 마케팅 전략을 생성하고 있습니다...\n\n⏱️ 경과 시간: ${elapsed}초 / 예상 5-15초\n\n💡 4가지 서로 다른 전략을 준비하고 있어요!\n\n🔄 처리 중... 잠시만 기다려주세요.`;
+        }
+        return updated;
+      });
+    }, 500);
+    
+    try {
+      // Call strategy generation API with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      const response = await fetch('/api/generate-strategy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationHistory: messages.slice(-10) // Send last 10 messages for context
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Remove loading message
+        setMessages(prev => prev.filter(msg => !msg.content.includes('AI가 맞춤형 마케팅 전략을 생성하고 있습니다')));
+        
+        // Check if there was meaningful conversation
+        const hasUserInput = messages.some(msg => 
+          msg.type === 'user' && 
+          msg.content && 
+          msg.content.trim().length > 0 && 
+          !msg.content.includes('AI 전략 생성하기')
+        );
+
+        let responseContent;
+        const finalTime = data.processingTime || loadingTime;
+        
+        if (hasUserInput) {
+          responseContent = `🎯 ${data.strategy.title}\n\n${data.strategy.overview}\n\n실행 액션들:\n${data.strategy.actions.map((action: any, index: number) => 
+            `${index + 1}. ${action.title} - ${action.duration} - ${action.method}`
+          ).join('\n')}\n\n예상 효과: ${data.strategy.expectedEffect}\n\n필요한 리소스: ${data.strategy.requiredResources}\n\n실행 일정: ${data.strategy.schedule}\n\n💡 이 전략을 캘린더에 등록하여 체계적으로 실행해보세요!\n\n⏱️ 처리 시간: ${finalTime}초`;
+        } else {
+          responseContent = `🎯 ${data.strategy.title}\n\n${data.strategy.overview}\n\n실행 액션들:\n${data.strategy.actions.map((action: any, index: number) => 
+            `${index + 1}. ${action.title} - ${action.duration} - ${action.method}`
+          ).join('\n')}\n\n예상 효과: ${data.strategy.expectedEffect}\n\n필요한 리소스: ${data.strategy.requiredResources}\n\n실행 일정: ${data.strategy.schedule}\n\n💡 이 전략을 캘린더에 등록하여 체계적으로 실행해보세요!\n\n📝 더 맞춤형 전략을 원하신다면?\n업종, 고객층, 목표, 예산 등 자세한 정보를 알려주시면 더욱 정확한 전략을 만들어드릴 수 있어요!\n\n⏱️ 처리 시간: ${finalTime}초`;
+        }
+
+        const aiResponse: Message = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: responseContent,
+          showStrategyButton: false
+        };
+        
+        setMessages(prev => [...prev, aiResponse]);
+        
+        // Store strategy data for modal
+        setGeneratedStrategy(data);
+        
+        // Scroll to bottom after strategy generation is complete
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+        
+        // Open strategy modal after a short delay
+        setTimeout(() => {
+          setIsModalOpen(true);
+        }, 1000);
+      } else {
+        // Remove loading message
+        setMessages(prev => prev.filter(msg => !msg.content.includes('AI가 맞춤형 마케팅 전략을 생성하고 있습니다')));
+        
+        const errorResponse: Message = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: `❌ 전략 생성 중 오류가 발생했습니다.\n\n오류 내용: ${data.error || '알 수 없는 오류'}\n\n해결 방법:\n• 잠시 후 다시 시도해주세요\n• 네트워크 연결을 확인해주세요\n• 더 간단한 질문으로 시도해보세요\n\n💡 문제가 지속되면 관리자에게 문의해주세요.`,
+          showStrategyButton: false
+        };
+        setMessages(prev => [...prev, errorResponse]);
+      }
+    } catch (error) {
+      console.error('Strategy generation error:', error);
+      
+      // Remove loading message
+      setMessages(prev => prev.filter(msg => !msg.content.includes('AI가 맞춤형 마케팅 전략을 생성하고 있습니다')));
+      
+      let errorMessage = '❌ 네트워크 오류가 발생했습니다.\n\n해결 방법:\n• 인터넷 연결을 확인해주세요\n• 잠시 후 다시 시도해주세요\n• 더 간단한 질문으로 시도해보세요';
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        errorMessage = '⏱️ 처리 시간 초과\n\n30초 내에 응답을 받지 못했습니다.\n\n해결 방법:\n• 더 간단한 질문으로 다시 시도해주세요\n• 네트워크 상태를 확인해주세요\n• 잠시 후 다시 시도해주세요';
+      }
+      
+      const errorResponse: Message = {
         id: Date.now() + 1,
         type: 'ai',
-        content: '전략을 분석 중입니다... ✨\n\n현재 캘린더 일정과 비즈니스 데이터를 종합하여 맞춤형 마케팅 전략을 생성했습니다.\n\n아래 버튼을 클릭하여 상세 전략을 확인하세요!',
-        showStrategyButton: true
+        content: errorMessage,
+        showStrategyButton: false
       };
-      
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
+      // Clear loading interval
+      clearInterval(loadingInterval);
+      setIsTyping(false);
+    }
   };
 
   // Smart AI Response Generator based on user input
@@ -182,7 +311,7 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
     };
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     console.log('Send message clicked:', inputValue);
     if (!inputValue.trim()) return;
     
@@ -197,22 +326,73 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
     setInputValue('');
     setIsTyping(true);
     
-    // Simulate AI thinking time
+    // Scroll to bottom after user message
     setTimeout(() => {
-      setIsTyping(false);
-      const aiResponseData = generateAIResponse(currentInput);
-      const aiResponse: Message = {
+      scrollToBottom();
+    }, 100);
+    
+    try {
+      // Call ChatGPT API
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: currentInput,
+          conversationHistory: messages.slice(-10) // Send last 10 messages for context
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const aiResponse: Message = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: data.response,
+          showStrategyButton: false
+        };
+        setMessages(prev => [...prev, aiResponse]);
+        
+        // Scroll to bottom after AI response
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      } else {
+        const errorResponse: Message = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: `죄송합니다. 오류가 발생했습니다: ${data.error || '알 수 없는 오류'}\n\n다시 시도해주세요.`,
+          showStrategyButton: false
+        };
+        setMessages(prev => [...prev, errorResponse]);
+        
+        // Scroll to bottom after error response
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Chat API error:', error);
+      const errorResponse: Message = {
         id: Date.now() + 1,
         type: 'ai',
-        content: aiResponseData.content,
-        showStrategyButton: aiResponseData.showStrategyButton
+        content: '죄송합니다. 네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        showStrategyButton: false
       };
+      setMessages(prev => [...prev, errorResponse]);
       
-      setMessages(prev => [...prev, aiResponse]);
-    }, 800);
+      // Scroll to bottom after error response
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
-  const handleQuickQuestion = (questionText: string) => {
+  const handleQuickQuestion = async (questionText: string) => {
     console.log('Quick question clicked:', questionText);
     const userMessage: Message = {
       id: Date.now(),
@@ -223,19 +403,70 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
     
-    // Simulate AI response based on question
+    // Scroll to bottom after user message
     setTimeout(() => {
-      setIsTyping(false);
-      const aiResponseData = generateAIResponse(questionText);
-      const aiResponse: Message = {
+      scrollToBottom();
+    }, 100);
+    
+    try {
+      // Call ChatGPT API
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: questionText,
+          conversationHistory: messages.slice(-10) // Send last 10 messages for context
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const aiResponse: Message = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: data.response,
+          showStrategyButton: false
+        };
+        setMessages(prev => [...prev, aiResponse]);
+        
+        // Scroll to bottom after AI response
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      } else {
+        const errorResponse: Message = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: `죄송합니다. 오류가 발생했습니다: ${data.error || '알 수 없는 오류'}\n\n다시 시도해주세요.`,
+          showStrategyButton: false
+        };
+        setMessages(prev => [...prev, errorResponse]);
+        
+        // Scroll to bottom after error response
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Chat API error:', error);
+      const errorResponse: Message = {
         id: Date.now() + 1,
         type: 'ai',
-        content: aiResponseData.content,
-        showStrategyButton: aiResponseData.showStrategyButton
+        content: '죄송합니다. 네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+        showStrategyButton: false
       };
+      setMessages(prev => [...prev, errorResponse]);
       
-      setMessages(prev => [...prev, aiResponse]);
-    }, 800);
+      // Scroll to bottom after error response
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   return (
@@ -323,10 +554,16 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
             </div>
             <div className="flex-1">
               <div className="rounded-2xl rounded-tl-sm p-4 shadow-sm bg-[#FFF7F0]">
-                <div className="flex gap-2">
-                  <div className="w-2 h-2 bg-[#FFA45B] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-[#FFB878] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-[#FFCB9A] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <div className="w-2 h-2 bg-[#FFA45B] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-[#FFB878] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-[#FFCB9A] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                  <div className="text-xs text-[#FFA45B] font-medium">
+                    {loadingTime > 0 ? `${loadingTime}초 경과` : '처리 중...'}
+                    {loadingTime > 5 && <span className="ml-2 text-orange-600">⚡ 최적화 중...</span>}
+                  </div>
                 </div>
               </div>
             </div>
@@ -413,6 +650,7 @@ export function ChatSection({ onScheduleRegister }: ChatSectionProps) {
         selectedStrategy={selectedStrategy}
         onSelectStrategy={handleSelectStrategy}
         onScheduleRegister={onScheduleRegister}
+        generatedStrategy={generatedStrategy}
       />
     </div>
   );

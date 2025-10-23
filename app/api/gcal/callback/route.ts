@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
     }
 
     const oauth2Client = new google.auth.OAuth2(
-      process.env.VITE_GOOGLE_CLIENT_ID,
-      '', // Client secret is not needed for public OAuth clients
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
       'http://localhost:3000/api/gcal/callback'
     );
 
@@ -46,16 +46,32 @@ export async function GET(request: NextRequest) {
       expiry_date: tokens.expiry_date,
     };
 
-    // Redirect to frontend with success message
-    const redirectUrl = new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
-    redirectUrl.searchParams.set('gcal_connected', 'true');
-    
-    // Store tokens in URL hash (temporary solution)
-    // In production, use secure server-side storage
-    const tokenString = encodeURIComponent(JSON.stringify(tokenData));
-    redirectUrl.hash = `tokens=${tokenString}`;
+    // Return HTML page that stores tokens and redirects
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google Calendar 연결 완료</title>
+</head>
+<body>
+    <script>
+        // Store tokens in localStorage
+        const tokens = ${JSON.stringify(tokenData)};
+        localStorage.setItem('google_calendar_tokens', JSON.stringify(tokens));
+        
+        // Redirect to main page with success parameter
+        window.location.href = '${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}?gcal_connected=true&success=true';
+    </script>
+    <p>구글 캘린더 연결이 완료되었습니다. 잠시 후 메인 페이지로 이동합니다...</p>
+</body>
+</html>
+    `;
 
-    return NextResponse.redirect(redirectUrl.toString());
+    return new NextResponse(html, {
+      headers: {
+        'Content-Type': 'text/html',
+      },
+    });
   } catch (error) {
     console.error('Google Calendar callback error:', error);
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}?error=callback_failed`);

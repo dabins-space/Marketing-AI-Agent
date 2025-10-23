@@ -11,12 +11,14 @@ interface CreateEventRequest {
   startISO: string;
   endISO: string;
   attendees?: string[];
+  isStrategyEvent?: boolean;
+  strategyCode?: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: CreateEventRequest = await request.json();
-    const { title, description, location, startISO, endISO, attendees } = body;
+    const { title, description, location, startISO, endISO, attendees, isStrategyEvent, strategyCode } = body;
 
     // Get tokens from request headers (in production, get from secure storage)
     const authHeader = request.headers.get('authorization');
@@ -30,8 +32,8 @@ export async function POST(request: NextRequest) {
     const tokenData = JSON.parse(authHeader.replace('Bearer ', ''));
     
     const oauth2Client = new google.auth.OAuth2(
-      process.env.VITE_GOOGLE_CLIENT_ID,
-      '', // Client secret is not needed for public OAuth clients
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
       'http://localhost:3000/api/gcal/callback'
     );
 
@@ -78,8 +80,10 @@ export async function POST(request: NextRequest) {
 
     // Create event
     const event = {
-      summary: title,
-      description: description,
+      summary: isStrategyEvent ? `[전략] ${title}` : title,
+      description: isStrategyEvent ? 
+        `[MARKETING_STRATEGY]\n전략 코드: ${strategyCode || 'UNKNOWN'}\n${description}` : 
+        description,
       location: location || '',
       start: eventStart,
       end: eventEnd,

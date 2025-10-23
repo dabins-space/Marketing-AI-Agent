@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import React from 'react';
 import { X, Sparkles, RefreshCw, Calendar as CalendarIcon, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -50,11 +51,12 @@ interface StrategyModalProps {
   selectedStrategy: number | null;
   onSelectStrategy: (id: number) => void;
   onScheduleRegister?: (actions: ScheduledAction[]) => void;
+  generatedStrategy?: any; // AI generated strategy data
 }
 
-export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrategy, onScheduleRegister }: StrategyModalProps) {
+export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrategy, onScheduleRegister, generatedStrategy }: StrategyModalProps) {
   // Define strategies first so we can use it in initial state
-  const strategies: Strategy[] = [
+  const predefinedStrategies: Strategy[] = [
     {
       id: 1,
       code: 'PHOTO',
@@ -309,6 +311,104 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
     }
   ];
 
+  // Helper function to generate strategy reason based on title and overview
+  const getStrategyReason = (title: string, overview: string): string => {
+    const titleLower = title.toLowerCase();
+    
+    if (titleLower.includes('릴스') || titleLower.includes('챌린지')) {
+      return '고객 참여형 바이럴 마케팅 전략입니다. 인스타그램 릴스의 높은 도달률과 참여율을 활용하여 자연스러운 바이럴 효과를 만듭니다. 고객이 직접 콘텐츠에 참여함으로써 브랜드 인지도를 높이고 신규 고객을 유치할 수 있습니다.';
+    }
+    
+    if (titleLower.includes('쿠폰') || titleLower.includes('할인')) {
+      return '신규 고객 유치를 위한 할인 마케팅 전략입니다. 지역 커뮤니티와 연계하여 타겟 고객에게 직접적인 혜택을 제공합니다. 할인 쿠폰을 통해 고객의 첫 방문을 유도하고, 추가 혜택으로 재방문을 유도하는 효과적인 고객 확보 전략입니다.';
+    }
+    
+    if (titleLower.includes('ugc') || titleLower.includes('후기') || titleLower.includes('사진')) {
+      return '고객 생성 콘텐츠(UGC) 마케팅 전략입니다. 고객이 직접 제작한 콘텐츠를 활용하여 신뢰도 높은 마케팅을 진행합니다. 고객 참여를 유도하는 이벤트를 통해 자연스러운 브랜드 노출과 입소문 효과를 얻을 수 있습니다.';
+    }
+    
+    if (titleLower.includes('신메뉴') || titleLower.includes('출시') || titleLower.includes('런칭')) {
+      return '신제품/신메뉴 출시 마케팅 전략입니다. 다양한 채널을 활용한 종합적인 홍보로 신제품에 대한 관심을 높입니다. 사전 홍보부터 출시 이벤트, 후속 마케팅까지 체계적인 접근으로 신제품의 성공적인 런칭을 지원합니다.';
+    }
+    
+    if (titleLower.includes('sns') || titleLower.includes('인스타그램') || titleLower.includes('소셜')) {
+      return '소셜미디어 마케팅 전략입니다. SNS 플랫폼의 특성을 활용하여 타겟 고객과 직접적인 소통을 통해 브랜드 인지도를 높입니다. 다양한 콘텐츠 형식을 통해 고객의 관심을 끌고 참여를 유도하는 디지털 마케팅 접근법입니다.';
+    }
+    
+    if (titleLower.includes('커뮤니티') || titleLower.includes('지역') || titleLower.includes('협업')) {
+      return '지역 커뮤니티 마케팅 전략입니다. 지역 내 다른 비즈니스나 커뮤니티와의 협업을 통해 상호 고객을 공유하고 신뢰도를 높입니다. 지역 밀착형 마케팅으로 입소문 효과와 지속적인 고객 관계를 구축할 수 있습니다.';
+    }
+    
+    if (titleLower.includes('이벤트') || titleLower.includes('프로모션')) {
+      return '이벤트 마케팅 전략입니다. 고객 참여를 유도하는 다양한 이벤트를 통해 브랜드와의 상호작용을 높입니다. 재미있고 혜택이 있는 이벤트로 고객의 관심을 끌고 브랜드 인지도를 높이는 효과적인 마케팅 방법입니다.';
+    }
+    
+    // Default reason based on overview
+    return overview || '대화 내용을 바탕으로 생성된 맞춤형 마케팅 전략입니다. 현재 상황과 목표에 최적화된 실행 가능한 마케팅 아이디어를 제공합니다.';
+  };
+
+  // Convert generated strategies to Strategy format
+  const convertGeneratedStrategies = (genStrategy: any): Strategy[] => {
+    // Check if we have multiple strategies
+    const strategiesArray = genStrategy.strategies || genStrategy.strategy?.strategies;
+    if (strategiesArray && Array.isArray(strategiesArray)) {
+      return strategiesArray.map((strategy: any, index: number) => {
+        const actions = strategy.actions || [];
+        
+        return {
+          id: 999 + index, // Special ID for generated strategies
+          code: `AI_GEN_${index + 1}`,
+          title: strategy.title || `AI 생성 전략 ${index + 1}`,
+          duration: '14일',
+          startDate: new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }),
+          endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }),
+          summary: strategy.overview || 'AI가 생성한 맞춤형 마케팅 전략입니다.',
+          reason: getStrategyReason(strategy.title || '', strategy.overview || ''),
+          expectedEffect: strategy.expectedEffect || '매출 증대 및 고객 유치 효과 기대',
+          actionPlans: actions.map((action: any, actionIndex: number) => ({
+            category: 'content' as const,
+            section: action.section === 'preparation' ? 'preparation' as const :
+                     action.section === 'content' ? 'content' as const :
+                     action.section === 'execution' ? 'event' as const : 'preparation' as const,
+            title: action.title || `액션 ${actionIndex + 1}`,
+            description: `${action.duration || '1-2일'} - ${action.method || '직접 실행'}`,
+            icon: action.section === 'preparation' ? '🎯' :
+                  action.section === 'content' ? '✨' :
+                  action.section === 'execution' ? '🚀' : '🎯',
+            daysFromStart: actionIndex * 2
+          }))
+        };
+      });
+    }
+    
+    // Fallback for single strategy (backward compatibility)
+    const singleStrategy = genStrategy.strategy || genStrategy;
+    const actions = singleStrategy.actions || [];
+    
+    return [{
+      id: 999,
+      code: 'AI_GEN',
+      title: singleStrategy.title || 'AI 생성 전략',
+      duration: '14일',
+      startDate: new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }),
+      endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }),
+      summary: singleStrategy.overview || 'AI가 생성한 맞춤형 마케팅 전략입니다.',
+      reason: '대화 내용을 바탕으로 생성된 맞춤형 전략입니다.',
+      expectedEffect: singleStrategy.expectedEffect || '매출 증대 및 고객 유치 효과 기대',
+      actionPlans: actions.map((action: any, index: number) => ({
+        category: 'content' as const,
+        section: 'preparation' as const,
+        title: action.title || `액션 ${index + 1}`,
+        description: `${action.duration || '1-2일'} - ${action.method || '직접 실행'}`,
+        icon: '🎯',
+        daysFromStart: index * 2
+      }))
+    }];
+  };
+
+  // Use generated strategies if available, otherwise use predefined strategies
+  const strategies = generatedStrategy ? convertGeneratedStrategies(generatedStrategy) : predefinedStrategies;
+
   // Initialize selected actions with all action plans checked by default
   const initializeSelectedActions = () => {
     const initialState: { [strategyId: number]: Set<number> } = {};
@@ -350,6 +450,13 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
   const [strategyModes, setStrategyModes] = useState<{ [strategyId: number]: 'direct' | 'expert' }>(initializeStrategyModes);
   // Action-level modes: each action can have its own mode (기본값: direct)
   const [actionModes, setActionModes] = useState<{ [strategyId: number]: { [actionIndex: number]: 'direct' | 'expert' } }>(initializeActionModes);
+
+  // Reset selected actions when strategies change (e.g., when generatedStrategy is loaded)
+  useEffect(() => {
+    setSelectedActions(initializeSelectedActions());
+    setStrategyModes(initializeStrategyModes());
+    setActionModes(initializeActionModes());
+  }, [strategies]);
   const [showAnalysis, setShowAnalysis] = useState(true);
   const [expandedStrategies, setExpandedStrategies] = useState<Set<number>>(new Set());
   const [strategyDates, setStrategyDates] = useState<{ [strategyId: number]: { startDate: Date | undefined; endDate: Date | undefined } }>({});
@@ -567,19 +674,6 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
       onScheduleRegister(scheduledActions);
     }
 
-    // Create Google Calendar events for all selected actions
-    const isGoogleConnected = localStorage.getItem('google_calendar_tokens');
-    if (isGoogleConnected) {
-      toast.info('구글 캘린더에 일정을 추가하는 중...');
-      
-      // Create events one by one to avoid rate limiting
-      for (const action of scheduledActions) {
-        await createCalendarEvent(action);
-        // Small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-
     // Close modal
     onClose();
   };
@@ -672,8 +766,8 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-gray-900">AI가 추천하는 이번 주 마케팅 전략 🔍</h2>
-                <p className="text-sm text-gray-600">원하는 전략을 선택하고 캘린더에 등록하세요</p>
+                <h2 className="text-gray-900 font-bold text-xl">🎯 AI 맞춤 마케팅 전략</h2>
+                <p className="text-sm text-gray-600 mt-1">{strategies.length}가지 전략 중 원하는 것을 선택하여 캘린더에 등록하세요</p>
               </div>
             </div>
             <button 
@@ -696,10 +790,11 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 text-left">
-                <h4 className="text-gray-900">전체 데이터 분석 & AI 추천 요약</h4>
+                <h4 className="text-gray-900 font-semibold">📊 데이터 분석 & AI 추천 요약</h4>
+                <p className="text-xs text-gray-500 mt-1">현재 상황 분석과 맞춤 전략 제안</p>
               </div>
               <p className="text-sm text-[#FFA45B] font-medium">
-                {showAnalysis ? '클릭하여 숨기기' : '클릭하여 자세히 보기'}
+                {showAnalysis ? '접기' : '펼치기'}
               </p>
             </div>
             {showAnalysis ? (
@@ -718,26 +813,36 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                     <span className="text-xl">📊</span>
                   </div>
                   <div className="flex-1">
-                    <h4 className="text-gray-900 mb-1">데이터 분석 결과</h4>
-                    <p className="text-sm text-gray-700">
-                      이번 주 신규 매출이 저번 주 대비 <span className="text-red-600">15% 감소</span>했습니다. 
-                      기존 고객의 재방문율은 42%로 유지되고 있으나, 신규 고객 유입이 <span className="text-red-600">28% 하락</span>한 상태입니다.
-                    </p>
+                    <h4 className="text-gray-900 mb-2 font-semibold">📈 현재 상황 분석</h4>
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        <span className="font-medium">매출 현황:</span> 이번 주 신규 매출이 저번 주 대비 
+                        <span className="text-red-600 font-semibold"> 15% 감소</span>했습니다.
+                      </p>
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        <span className="font-medium">고객 유지:</span> 기존 고객 재방문율은 
+                        <span className="text-green-600 font-semibold"> 42%</span>로 안정적이나, 
+                        신규 고객 유입이 <span className="text-red-600 font-semibold"> 28% 하락</span>했습니다.
+                      </p>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-gray-100">
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 mb-1">신규 고객</p>
-                    <p className="text-red-600">-28%</p>
+                <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100">
+                  <div className="text-center bg-red-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-600 mb-1 font-medium">신규 고객</p>
+                    <p className="text-lg font-bold text-red-600">-28%</p>
+                    <p className="text-xs text-red-500">개선 필요</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 mb-1">재방문율</p>
-                    <p className="text-green-600">42%</p>
+                  <div className="text-center bg-green-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-600 mb-1 font-medium">재방문율</p>
+                    <p className="text-lg font-bold text-green-600">42%</p>
+                    <p className="text-xs text-green-500">양호</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 mb-1">전체 매출</p>
-                    <p className="text-red-600">-15%</p>
+                  <div className="text-center bg-red-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-600 mb-1 font-medium">전체 매출</p>
+                    <p className="text-lg font-bold text-red-600">-15%</p>
+                    <p className="text-xs text-red-500">감소</p>
                   </div>
                 </div>
               </div>
@@ -749,32 +854,33 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                     <Sparkles className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="text-gray-900 mb-2">AI 추천 전략</h4>
-                    <p className="text-sm text-gray-700 mb-3">
-                      이런 분석 결과를 바탕으로 <span className="text-[#FFA45B]">맞춤 신상 홍보 전략</span>을 준비했습니다. 
-                      신제품 기획부터 인플루언서 협업까지, 신규 고객 유치와 브랜드 인지도 향상에 최적화되어 있습니다.
+                    <h4 className="text-gray-900 mb-3 font-semibold">🎯 AI 맞춤 전략 제안</h4>
+                    <p className="text-sm text-gray-700 mb-4 leading-relaxed">
+                      위 분석 결과를 바탕으로 <span className="text-[#FFA45B] font-semibold">{strategies.length}가지 맞춤 마케팅 전략</span>을 준비했습니다. 
+                      각 전략은 신규 고객 유치와 매출 증대에 최적화되어 있습니다.
                     </p>
                     
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45B]"></div>
-                        <span className="text-gray-700">신제품 기획 및 개발 - 트렌드 기반 완성도</span>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
+                        <div className="w-2 h-2 rounded-full bg-[#FFA45B] mt-2 flex-shrink-0"></div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">사전단계</p>
+                          <p className="text-xs text-gray-600">전략 수립 및 데이터 분석</p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#FFB878]"></div>
-                        <span className="text-gray-700">사전 반응 테스트 - 데이터 기반 검증</span>
+                      <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
+                        <div className="w-2 h-2 rounded-full bg-[#FFB878] mt-2 flex-shrink-0"></div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">기획단계</p>
+                          <p className="text-xs text-gray-600">콘텐츠 기획 및 제작</p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#FFCB9A]"></div>
-                        <span className="text-gray-700">전문 촬영 및 콘텐츠 제작 - 퀄리티 극대화</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45B]"></div>
-                        <span className="text-gray-700">SNS·블로그 통합 홍보 - 바이럴 마케팅</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#FFB878]"></div>
-                        <span className="text-gray-700">인플루언서 협업 - 신뢰도 및 도달 범위 확대</span>
+                      <div className="flex items-start gap-3 p-3 bg-white/60 rounded-lg">
+                        <div className="w-2 h-2 rounded-full bg-[#FFCB9A] mt-2 flex-shrink-0"></div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">실행단계</p>
+                          <p className="text-xs text-gray-600">마케팅 실행 및 홍보</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -796,92 +902,117 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FFA45B] to-[#FFB878] flex items-center justify-center">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
-              <h3 className="text-2xl bg-gradient-to-r from-[#FFA45B] to-[#FFB878] bg-clip-text text-transparent">추천 마케팅 액션 플랜</h3>
+              <h3 className="text-2xl font-bold bg-gradient-to-r from-[#FFA45B] to-[#FFB878] bg-clip-text text-transparent">📋 마케팅 액션 플랜</h3>
               {isFullscreen && (
                 <span className="text-sm text-gray-500 ml-auto">💡 더블 클릭하여 축소</span>
               )}
             </div>
             
             {/* 간단한 요약 */}
-            <div className="ml-13 mb-3">
-              <p className="text-sm text-gray-700 leading-relaxed">
-                원하는 액션을 선택하면 <strong className="text-gray-900">Google 캘린더에 자동 등록</strong>되고 <strong className="text-gray-900">알람이 발송</strong>됩니다. 
-                각 액션은 <span className="text-[#FFA45B]">직접 실행</span>(AI 도구 제공) 또는 <span className="text-blue-600">전문가 요청</span>(전문가 대행) 모드로 진행할 수 있습니다.
-              </p>
+            <div className="ml-13 mb-4">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">💡 사용 방법</h4>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p>• <strong>액션 선택:</strong> 원하는 액션을 선택하면 <span className="text-blue-600 font-semibold">Google 캘린더에 자동 등록</span>됩니다</p>
+                  <p>• <strong>실행 모드:</strong> <span className="text-[#FFA45B] font-semibold">직접 실행</span> (AI 도구 제공) 또는 <span className="text-blue-600 font-semibold">전문가 요청</span> (전문가 대행)</p>
+                  <p>• <strong>알림:</strong> 각 액션의 실행 날짜에 맞춰 <span className="text-green-600 font-semibold">자동 알림</span>이 발송됩니다</p>
+                </div>
+              </div>
             </div>
 
             {/* Collapsible 자세히 보기 */}
             <Collapsible className="ml-13">
               <CollapsibleTrigger className="flex items-center gap-2 text-sm text-[#FFA45B] hover:text-[#FF8C00] transition-colors mb-3 group">
                 <ChevronDown className="w-4 h-4 transition-transform group-data-[state=open]:rotate-180" />
-                <span>자세한 사용 방법 보기</span>
+                <span>📖 상세 가이드 보기</span>
               </CollapsibleTrigger>
               
               <CollapsibleContent className="space-y-3 animate-fadeIn">
                 {/* 액션 플랜 선택 안내 */}
                 <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-l-4 border-[#FFA45B] rounded-lg p-4">
-                  <h4 className="text-gray-900 mb-2">액션 플랜 선택하기</h4>
-                  <p className="text-sm text-gray-700 leading-relaxed mb-3">
-                    아래 전략 카드에서 실행하고 싶은 액션 플랜을 개별적으로 선택할 수 있습니다.
+                  <h4 className="text-gray-900 mb-3 font-semibold">🎯 액션 플랜 선택하기</h4>
+                  <p className="text-sm text-gray-700 leading-relaxed mb-4">
+                    아래 {strategies.length}가지 전략 카드에서 실행하고 싶은 액션 플랜을 개별적으로 선택할 수 있습니다.
                   </p>
-                  <div className="bg-white/70 rounded-lg p-3 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45B] mt-1.5 flex-shrink-0"></div>
-                      <p className="text-sm text-gray-800">
-                        <strong>Google 캘린더 자동 등록:</strong> 선택한 액션 플랜만 실제 캘린더에 일정으로 추가됩니다
-                      </p>
+                  <div className="bg-white/70 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-[#FFA45B] mt-2 flex-shrink-0"></div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">📅 Google 캘린더 자동 등록</p>
+                        <p className="text-xs text-gray-600">선택한 액션 플랜만 실제 캘린더에 일정으로 추가됩니다</p>
+                      </div>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45B] mt-1.5 flex-shrink-0"></div>
-                      <p className="text-sm text-gray-800">
-                        <strong>알람 발송:</strong> 각 액션 플랜의 실행 날짜에 맞춰 자동으로 알림이 전송됩니다
-                      </p>
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-[#FFA45B] mt-2 flex-shrink-0"></div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">🔔 자동 알림 발송</p>
+                        <p className="text-xs text-gray-600">각 액션 플랜의 실행 날짜에 맞춰 자동으로 알림이 전송됩니다</p>
+                      </div>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45B] mt-1.5 flex-shrink-0"></div>
-                      <p className="text-sm text-gray-800">
-                        <strong>개별 선택 가능:</strong> 전체 전략 중 필요한 액션만 선택하여 진행할 수 있습니다
-                      </p>
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-[#FFA45B] mt-2 flex-shrink-0"></div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">✅ 개별 선택 가능</p>
+                        <p className="text-xs text-gray-600">전체 전략 중 필요한 액션만 선택하여 진행할 수 있습니다</p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* 실행 모드 선택 안내 */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg p-4">
-                  <h4 className="text-gray-900 mb-2">실행 모드 선택하기</h4>
-                  <p className="text-sm text-gray-700 leading-relaxed mb-3">
+                  <h4 className="text-gray-900 mb-3 font-semibold">⚙️ 실행 모드 선택하기</h4>
+                  <p className="text-sm text-gray-700 leading-relaxed mb-4">
                     각 액션 플랜을 어떻게 실행할지 모드를 선택할 수 있습니다. 액션별로 다른 모드를 선택할 수도 있습니다.
                   </p>
                   
                   {/* 직접 선택 모드 */}
-                  <div className="bg-white/70 rounded-lg p-3 mb-3">
-                    <div className="flex items-start gap-2 mb-2">
-                      <div className="px-2 py-0.5 bg-[#FFA45B] text-white rounded text-xs flex-shrink-0">직접 실행</div>
-                      <p className="text-sm text-gray-900">내가 직접 실행하고 AI가 실행을 도와드립니다</p>
+                  <div className="bg-white/70 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="px-3 py-1 bg-[#FFA45B] text-white rounded-full text-xs font-medium flex-shrink-0">👤 직접 실행</div>
+                      <p className="text-sm font-medium text-gray-900">내가 직접 실행하고 AI가 실행을 도와드립니다</p>
                     </div>
-                    <div className="pl-4 space-y-1.5 text-sm text-gray-700">
-                      <p>• 별도 탭에서 각 액션별로 상세한 가이드와 AI 도구를 제공합니다</p>
-                      <p>• AI가 실제 마케팅 콘텐츠를 자동으로 생성해드립니다</p>
-                      <p className="text-xs text-gray-600 pl-3">
-                        예시: 마케팅 문구 자동 생성, SNS 해시태그/키워드 추천, 이미지 콘셉트 가이드, 
-                        포스팅 최적 타이밍 분석, 타겟 고객 분석 리포트 등
-                      </p>
+                    <div className="pl-6 space-y-2 text-sm text-gray-700">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#FFA45B]">•</span>
+                        <p>별도 탭에서 각 액션별로 상세한 가이드와 AI 도구를 제공합니다</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#FFA45B]">•</span>
+                        <p>AI가 실제 마케팅 콘텐츠를 자동으로 생성해드립니다</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                        <p className="text-xs text-gray-600 font-medium mb-1">💡 제공 서비스 예시:</p>
+                        <p className="text-xs text-gray-600">
+                          마케팅 문구 자동 생성, SNS 해시태그/키워드 추천, 이미지 콘셉트 가이드, 
+                          포스팅 최적 타이밍 분석, 타겟 고객 분석 리포트 등
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   {/* 전문가 요청 모드 */}
-                  <div className="bg-white/70 rounded-lg p-3">
-                    <div className="flex items-start gap-2 mb-2">
-                      <div className="px-2 py-0.5 bg-blue-600 text-white rounded text-xs flex-shrink-0">전문가 요청</div>
-                      <p className="text-sm text-gray-900">전문가가 직접 실행하고 결과를 공유해드립니다</p>
+                  <div className="bg-white/70 rounded-lg p-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="px-3 py-1 bg-blue-600 text-white rounded-full text-xs font-medium flex-shrink-0">👨‍💼 전문가 요청</div>
+                      <p className="text-sm font-medium text-gray-900">전문가가 직접 실행하고 결과를 공유해드립니다</p>
                     </div>
-                    <div className="pl-4 space-y-1.5 text-sm text-gray-700">
-                      <p>• 마케팅 전문가가 처음부터 끝까지 직접 진행합니다</p>
-                      <p>• 완성된 결과물과 실행 리포트를 받아보실 수 있습니다</p>
-                      <p className="text-xs text-gray-600 pl-3">
-                        예시: 전문 콘텐츠 기획 및 제작, 광고 캠페인 운영, 인플루언서 섭외 및 협업 관리, 
-                        전문 사진/영상 촬영, SNS 계정 운영 대행 등
-                      </p>
+                    <div className="pl-6 space-y-2 text-sm text-gray-700">
+                      <div className="flex items-start gap-2">
+                        <span className="text-blue-600">•</span>
+                        <p>마케팅 전문가가 처음부터 끝까지 직접 진행합니다</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-blue-600">•</span>
+                        <p>완성된 결과물과 실행 리포트를 받아보실 수 있습니다</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-lg p-3 mt-3">
+                        <p className="text-xs text-gray-600 font-medium mb-1">💼 전문가 서비스 예시:</p>
+                        <p className="text-xs text-gray-600">
+                          전문 콘텐츠 기획 및 제작, 광고 캠페인 운영, 인플루언서 섭외 및 협업 관리, 
+                          전문 사진/영상 촬영, SNS 계정 운영 대행 등
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1227,7 +1358,7 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                         </div>
 
                         <div className="space-y-6">
-                          {/* 사전준비 단계 Section */}
+                          {/* 사전단계 Section */}
                           {(() => {
                             const preparationActions = strategy.actionPlans.filter(action => 
                               action.section === 'preparation'
@@ -1241,7 +1372,7 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                                   <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
                                     <span className="text-sm">🎯</span>
                                   </div>
-                                  <h6 className="text-sm text-purple-700">사전준비 단계</h6>
+                                  <h6 className="text-sm text-purple-700">사전단계</h6>
                                   <div className="flex-1 h-px bg-purple-200"></div>
                                 </div>
                                 <div className="space-y-3">
@@ -1348,7 +1479,7 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                             );
                           })()}
 
-                          {/* 콘텐츠 기획 단계 Section */}
+                          {/* 기획단계 Section */}
                           {(() => {
                             const contentActions = strategy.actionPlans.filter(action => 
                               action.section === 'content'
@@ -1362,7 +1493,7 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                                   <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
                                     <span className="text-sm">✨</span>
                                   </div>
-                                  <h6 className="text-sm text-green-700">콘텐츠 기획/제작 단계</h6>
+                                  <h6 className="text-sm text-green-700">기획단계</h6>
                                   <div className="flex-1 h-px bg-green-200"></div>
                                 </div>
                                 <div className="space-y-3">
@@ -1469,10 +1600,10 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                             );
                           })()}
 
-                          {/* 이벤트 기획 단계 Section (선택적) */}
+                          {/* 실행단계 Section */}
                           {(() => {
                             const eventActions = strategy.actionPlans.filter(action => 
-                              action.section === 'event'
+                              action.section === 'event' || action.section === 'promotion'
                             );
                             
                             if (eventActions.length === 0) return null;
@@ -1481,12 +1612,9 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                               <div>
                                 <div className="flex items-center gap-2 mb-3">
                                   <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                                    <span className="text-sm">🎉</span>
+                                    <span className="text-sm">🚀</span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <h6 className="text-sm text-amber-700">이벤트 기획 단계</h6>
-                                    <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">선택적</span>
-                                  </div>
+                                  <h6 className="text-sm text-amber-700">실행단계</h6>
                                   <div className="flex-1 h-px bg-amber-200"></div>
                                 </div>
                                 <div className="space-y-3">
@@ -1593,126 +1721,6 @@ export function StrategyModal({ isOpen, onClose, selectedStrategy, onSelectStrat
                             );
                           })()}
 
-                          {/* 채널 홍보 단계 Section */}
-                          {(() => {
-                            const channelActions = strategy.actionPlans.filter(action => 
-                              action.section === 'promotion'
-                            );
-                            
-                            if (channelActions.length === 0) return null;
-                            
-                            return (
-                              <div>
-                                <div className="flex items-center gap-2 mb-3">
-                                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                                    <span className="text-sm">📢</span>
-                                  </div>
-                                  <h6 className="text-sm text-blue-700">채널 홍보 단계</h6>
-                                  <div className="flex-1 h-px bg-blue-200"></div>
-                                </div>
-                                <div className="space-y-3">
-                                  {channelActions.map((action) => {
-                                    const idx = strategy.actionPlans.indexOf(action);
-                                    const isActionSelected = selectedActions[strategy.id]?.has(idx) || false;
-                                    const actionMode = getActionMode(strategy.id, idx);
-                                    
-                                    return (
-                                      <div
-                                        key={idx}
-                                        className={`rounded-xl p-4 border-2 transition-all ${
-                                          isActionSelected
-                                            ? actionMode === 'expert'
-                                              ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-400 shadow-md'
-                                              : 'bg-gradient-to-r from-orange-50 to-amber-50 border-[#FFA45B] shadow-md'
-                                            : 'bg-white border-gray-200 hover:shadow-sm'
-                                        }`}
-                                      >
-                                        <div className="flex items-start gap-3">
-                                          <div className="text-2xl flex-shrink-0 mt-1">
-                                            {action.icon}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <h5 className="text-sm text-gray-900 mb-1">
-                                              {action.title}
-                                            </h5>
-                                            <p className="text-xs text-gray-600">
-                                              {action.description}
-                                            </p>
-                                          </div>
-                                          
-                                          {/* Action Controls */}
-                                          <div className="flex gap-2 flex-shrink-0">
-                                            {/* Mode Toggle - Small */}
-                                            <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setActionModes(prev => ({
-                                                    ...prev,
-                                                    [strategy.id]: {
-                                                      ...(prev[strategy.id] || {}),
-                                                      [idx]: 'direct'
-                                                    }
-                                                  }));
-                                                }}
-                                                className={`px-2 py-1 rounded text-xs transition-all flex items-center gap-1 ${
-                                                  actionMode === 'direct'
-                                                    ? 'bg-white shadow-sm text-gray-900'
-                                                    : 'text-gray-500 hover:text-gray-700'
-                                                }`}
-                                                title="내가 직접 실행"
-                                              >
-                                                <span>👤</span>
-                                                <span className="text-[10px]">직접</span>
-                                              </button>
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setActionModes(prev => ({
-                                                    ...prev,
-                                                    [strategy.id]: {
-                                                      ...(prev[strategy.id] || {}),
-                                                      [idx]: 'expert'
-                                                    }
-                                                  }));
-                                                }}
-                                                className={`px-2 py-1 rounded text-xs transition-all flex items-center gap-1 ${
-                                                  actionMode === 'expert'
-                                                    ? 'bg-white shadow-sm text-gray-900'
-                                                    : 'text-gray-500 hover:text-gray-700'
-                                                }`}
-                                                title="전문가 요청"
-                                              >
-                                                <span>👨‍💼</span>
-                                                <span className="text-[10px]">전문가</span>
-                                              </button>
-                                            </div>
-
-                                            {/* Select Button */}
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleAction(strategy.id, idx);
-                                              }}
-                                              className={`px-3 py-1.5 rounded-lg text-xs transition-all whitespace-nowrap ${
-                                                isActionSelected
-                                                  ? actionMode === 'expert'
-                                                    ? 'bg-gradient-to-br from-blue-500 to-indigo-500 text-white shadow-sm'
-                                                    : 'bg-gradient-to-br from-[#FFA45B] to-[#FFB878] text-white shadow-sm'
-                                                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400'
-                                              }`}
-                                            >
-                                              {isActionSelected ? '선택됨 ✓' : '선택'}
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })()}
                         </div>
                       </div>
                     </div>
