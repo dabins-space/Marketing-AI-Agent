@@ -34,6 +34,11 @@ export default function HomePage() {
     setScheduledActions(prev => [...prev, ...actions])
   }
 
+  const handleUpdateScheduledActions = (actions: ScheduledAction[]) => {
+    console.log('Update scheduled actions called:', actions);
+    setScheduledActions(actions)
+  }
+
   return (
     <div className="h-screen w-full flex flex-col bg-[#FFFBF7]">
       {/* Top Navigation Bar */}
@@ -141,7 +146,7 @@ export default function HomePage() {
             {/* Right Panel - Calendar & Strategy */}
             <ResizablePanel defaultSize={isChatCollapsed ? 100 : 65} minSize={50}>
               <div className="h-full flex flex-col overflow-hidden relative">
-                <CalendarSection scheduledActions={scheduledActions} />
+                <CalendarSection scheduledActions={scheduledActions} onUpdateScheduledActions={handleUpdateScheduledActions} />
                 
                 {/* Expand Chat Button - Shows when chat is collapsed */}
                 {isChatCollapsed && (
@@ -191,7 +196,7 @@ export default function HomePage() {
             {!mobileMenuOpen ? (
               <ChatSection onScheduleRegister={handleScheduleRegister} />
             ) : (
-              <CalendarSection scheduledActions={scheduledActions} />
+              <CalendarSection scheduledActions={scheduledActions} onUpdateScheduledActions={handleUpdateScheduledActions} />
             )}
           </div>
         </div>

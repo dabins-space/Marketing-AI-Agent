@@ -31,9 +31,10 @@ interface EventDetail {
 
 interface CalendarSectionProps {
   scheduledActions?: ScheduledAction[];
+  onUpdateScheduledActions?: (actions: ScheduledAction[]) => void;
 }
 
-export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps) {
+export function CalendarSection({ scheduledActions = [], onUpdateScheduledActions }: CalendarSectionProps) {
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set(['personal', 'strategy']));
   const [currentDate, setCurrentDate] = useState(new Date(2025, 9, 18)); // October 18, 2025 (month is 0-indexed)
   const [selectedEvent, setSelectedEvent] = useState<EventDetail | null>(null);
@@ -601,7 +602,12 @@ export function CalendarSection({ scheduledActions = [] }: CalendarSectionProps)
         const updatedActions = scheduledActions.filter(a => 
           a.actionTitle !== event.scheduledAction?.actionTitle
         );
-        // Note: This would need to be passed up to parent component
+        
+        // Update the parent component's state
+        if (onUpdateScheduledActions) {
+          onUpdateScheduledActions(updatedActions);
+        }
+        
         toast.success('전략 일정이 삭제되었습니다.');
       }
       
